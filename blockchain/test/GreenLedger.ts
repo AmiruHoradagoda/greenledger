@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { network } from "hardhat";
 
@@ -67,6 +68,12 @@ describe("GreenLedger", async function () {
 
     const certificate = await greenLedger.read.certificates([1n]);
 
-    console.log(certificate);
+    assert.equal(certificate[0], 1n);
+    assert.equal(certificate[1], "Hambantota Solar Farm");
+    assert.equal(certificate[2], "Solar");
+    assert.equal(certificate[3], 1n);
+    assert.equal(certificate[4], "2026-09");
+    assert.equal(certificate[5].toLowerCase(), owner.toLowerCase());
+    assert.equal(certificate[6], true);
   });
 });
