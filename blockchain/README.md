@@ -6,12 +6,12 @@ This `blockchain` directory contains the Solidity contract, automated tests, a l
 
 ## Certificate lifecycle
 
-| Action | Who can call it | Result |
-| --- | --- | --- |
-| Issue | Issuer (the account that deploys the contract) | Creates a certificate with a unique ID, generator name, energy source, energy amount in MWh, generation period, and owner. |
-| Transfer | Current owner | Changes the owner and emits `CertificateTransferred`. A retired certificate cannot be transferred. |
-| Retire | Current owner | Marks the certificate as retired and emits `CertificateRetired`. It cannot be retired twice. |
-| Verify | Anyone | Reads the certificate details, current owner, and `retired` status. |
+| Action   | Who can call it                                | Result                                                                                                                     |
+| -------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Issue    | Issuer (the account that deploys the contract) | Creates a certificate with a unique ID, generator name, energy source, energy amount in MWh, generation period, and owner. |
+| Transfer | Current owner                                  | Changes the owner and emits `CertificateTransferred`. A retired certificate cannot be transferred.                         |
+| Retire   | Current owner                                  | Marks the certificate as retired and emits `CertificateRetired`. It cannot be retired twice.                               |
+| Verify   | Anyone                                         | Reads the certificate details, current owner, and `retired` status.                                                        |
 
 Issuing rejects a zero owner address and zero energy amount. Transfers reject nonexistent certificates and a zero destination address. Each state change emits an event. The contract is in `contracts/GreenLedger.sol`.
 
@@ -27,7 +27,7 @@ npm ci
 npx hardhat test
 ```
 
-The tests cover issuing and its access control, stored certificate data, authorized and unauthorized transfers, retirement, repeated retirement, and transfers after retirement. The starter `Counter` tests also run.
+The tests cover issuing and its access control, stored certificate data, authorized and unauthorized transfers, retirement, repeated retirement, and transfers after retirement.
 
 ## Local demo
 
@@ -41,7 +41,7 @@ npx hardhat node
 
 **Terminal 2 — deploy the contract:**
 
-If `ignition/deployments/chain-31337` exists from an earlier run, remove that local deployment record before deploying to a fresh node. The current repository includes a prior local deployment record, so do this after cloning it:
+If `ignition/deployments/chain-31337` exists from an earlier run, remove that local deployment record before deploying to a fresh node:
 
 ```powershell
 Remove-Item -Recurse -Force .\ignition\deployments\chain-31337
