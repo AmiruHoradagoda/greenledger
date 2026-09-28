@@ -76,4 +76,66 @@ describe("GreenLedger", async function () {
     assert.equal(certificate[5].toLowerCase(), owner.toLowerCase());
     assert.equal(certificate[6], true);
   });
+  it("should allow the owner to transfer a certificate", async function () {
+    const greenLedger = await viem.deployContract("GreenLedger");
+    const wallets = await viem.getWalletClients();
+    const owner = wallets[1];
+    const newOwner = wallets[2];
+
+    await greenLedger.write.issueCertificate([
+      "Hambantota Solar Farm",
+      "Solar",
+      1n,
+      "2026-09",
+      owner.account.address,
+    ]);
+
+    const contractAsOwner = await viem.getContractAt(
+      "GreenLedger",
+      greenLedger.address,
+      { client: { wallet: owner } },
+    );
+
+    await viem.assertions.emitWithArgs(
+      contractAsOwner.write.transferCertificate([1n, newOwner.account.address]),
+      greenLedger,
+      "CertificateTransferred",
+      [1n, owner.account.address, newOwner.account.address],
+    );
+
+    const certificate = await greenLedger.read.certificates([1n]);
+    assert.equal(
+      certificate[5].toLowerCase(),
+      newOwner.account.address.toLowerCase(),
+    );
+  });
+  it("should reject transfer from a non-owner", async function () {
+    const greenLedger = await viem.deployContract("GreenLedger");
+    const wallets = await viem.getWalletClients();
+    const owner = wallets[1];
+    const nonOwner = wallets[2];
+    const newOwner = wallets[3];
+
+    await greenLedger.write.issueCertificate([
+      "Hambantota Solar Farm",
+      "Solar",
+      1n,
+      "2026-09",
+      owner.account.address,
+    ]);
+
+    const contractAsNonOwner = await viem.getContractAt(
+      "GreenLedger",
+      greenLedger.address,
+      { client: { wallet: nonOwner } },
+    );
+
+    await viem.assertions.revertWith(
+      contractAsNonOwner.write.transferCertificate([
+        1n,
+        newOwner.account.address,
+      ]),
+      "Only owner can transfer",
+    );
+  });
 });

@@ -17,6 +17,7 @@ contract GreenLedger {
         string generationPeriod;
         address owner;
         bool exists;
+        bool retired;
     }
 
     mapping(uint256 => Certificate) public certificates;
@@ -26,6 +27,12 @@ contract GreenLedger {
         address indexed owner,
         string generatorName
     );
+
+    event CertificateRetired(
+    uint256 indexed certificateId,
+    address indexed owner
+    );
+
 
     constructor() {
         issuer = msg.sender;
@@ -70,7 +77,8 @@ contract GreenLedger {
             energyMWh: energyMWh,
             generationPeriod: generationPeriod,
             owner: owner,
-            exists: true
+            exists: true,
+            retired: false
         });
 
         nextCertificateId++;
@@ -98,4 +106,35 @@ contract GreenLedger {
 
         return certificates[certificateId];
     }
+    event CertificateTransferred(
+    uint256 indexed certificateId,
+    address indexed from,
+    address indexed to
+);
+
+function transferCertificate(uint256 certificateId, address newOwner) public {
+    Certificate storage certificate = certificates[certificateId];
+
+    require(certificate.exists, "Certificate does not exist");
+    require(msg.sender == certificate.owner, "Only owner can transfer");
+    require(!certificate.retired, "Cannot transfer retired certificate");
+    require(newOwner != address(0), "Invalid new owner address");
+
+    address previousOwner = certificate.owner;
+    certificate.owner = newOwner;
+
+    emit CertificateTransferred(certificateId, previousOwner, newOwner);
+}
+
+function retireCertificate(uint256 certificateId) public {
+    Certificate storage certificate = certificates[certificateId];
+
+    require(certificate.exists, "Certificate does not exist");
+    require(msg.sender == certificate.owner, "Only owner can retire");
+    require(!certificate.retired, "Certificate already retired");
+
+    certificate.retired = true;
+
+    emit CertificateRetired(certificateId, msg.sender);
+}
 }
