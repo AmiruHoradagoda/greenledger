@@ -138,4 +138,110 @@ describe("GreenLedger", async function () {
       "Only owner can transfer",
     );
   });
+  it("should allow the owner to retire a certificate", async function () {
+    const greenLedger = await viem.deployContract("GreenLedger");
+    const wallets = await viem.getWalletClients();
+    const owner = wallets[1];
+
+    await greenLedger.write.issueCertificate([
+      "Hambantota Solar Farm",
+      "Solar",
+      1n,
+      "2026-09",
+      owner.account.address,
+    ]);
+
+    const contractAsOwner = await viem.getContractAt(
+      "GreenLedger",
+      greenLedger.address,
+      { client: { wallet: owner } },
+    );
+
+    await viem.assertions.emitWithArgs(
+      contractAsOwner.write.retireCertificate([1n]),
+      greenLedger,
+      "CertificateRetired",
+      [1n, owner.account.address],
+    );
+
+    const certificate = await greenLedger.read.certificates([1n]);
+    assert.equal(certificate[7], true);
+  });
+  it("should reject retiring a certificate twice", async function () {
+    const greenLedger = await viem.deployContract("GreenLedger");
+    const owner = (await viem.getWalletClients())[1];
+
+    await greenLedger.write.issueCertificate([
+      "Hambantota Solar Farm",
+      "Solar",
+      1n,
+      "2026-09",
+      owner.account.address,
+    ]);
+
+    const contractAsOwner = await viem.getContractAt(
+      "GreenLedger",
+      greenLedger.address,
+      { client: { wallet: owner } },
+    );
+
+    await contractAsOwner.write.retireCertificate([1n]);
+
+    await viem.assertions.revertWith(
+      contractAsOwner.write.retireCertificate([1n]),
+      "Certificate already retired",
+    );
+  });
+  it("should reject transfer of a retired certificate", async function () {
+    const greenLedger = await viem.deployContract("GreenLedger");
+    const wallets = await viem.getWalletClients();
+    const owner = wallets[1];
+    const newOwner = wallets[2];
+
+    await greenLedger.write.issueCertificate([
+      "Hambantota Solar Farm",
+      "Solar",
+      1n,
+      "2026-09",
+      owner.account.address,
+    ]);
+
+    const contractAsOwner = await viem.getContractAt(
+      "GreenLedger",
+      greenLedger.address,
+      { client: { wallet: owner } },
+    );
+
+    await contractAsOwner.write.retireCertificate([1n]);
+
+    await viem.assertions.revertWith(
+      contractAsOwner.write.transferCertificate([1n, newOwner.account.address]),
+      "Cannot transfer retired certificate",
+    );
+  });
+  it("should reject retirement from a non-owner", async function () {
+    const greenLedger = await viem.deployContract("GreenLedger");
+    const wallets = await viem.getWalletClients();
+    const owner = wallets[1];
+    const nonOwner = wallets[2];
+
+    await greenLedger.write.issueCertificate([
+      "Hambantota Solar Farm",
+      "Solar",
+      1n,
+      "2026-09",
+      owner.account.address,
+    ]);
+
+    const contractAsNonOwner = await viem.getContractAt(
+      "GreenLedger",
+      greenLedger.address,
+      { client: { wallet: nonOwner } },
+    );
+
+    await viem.assertions.revertWith(
+      contractAsNonOwner.write.retireCertificate([1n]),
+      "Only owner can retire",
+    );
+  });
 });

@@ -1,0 +1,49 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_34-b8f04ab4ff141198606b3c48d10d564a22115053",
+  "solcVersion": "0.8.34",
+  "solcLongVersion": "0.8.34+commit.80d5c536",
+  "compilerType": "solc",
+  "toolVersions": {
+    "hardhat": "3.18.0"
+  },
+  "userSourceNameMap": {
+    "contracts/GreenLedger.sol": "project/contracts/GreenLedger.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "osaka",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode.linkReferences",
+            "evm.bytecode.object",
+            "evm.bytecode.opcodes",
+            "evm.bytecode.sourceMap",
+            "evm.deployedBytecode.immutableReferences",
+            "evm.deployedBytecode.linkReferences",
+            "evm.deployedBytecode.object",
+            "evm.deployedBytecode.opcodes",
+            "evm.deployedBytecode.sourceMap",
+            "evm.methodIdentifiers"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/GreenLedger.sol": {
+        "content": "// SPDX-License-Identifier: MIT\r\npragma solidity ^0.8.34;\r\n\r\ncontract GreenLedger {\r\n\r\n    // Address allowed to issue renewable energy certificates.\r\n    address public issuer;\r\n\r\n    // The next certificate will start with ID 1.\r\n    uint256 public nextCertificateId = 1;\r\n\r\n    struct Certificate {\r\n        uint256 id;\r\n        string generatorName;\r\n        string energySource;\r\n        uint256 energyMWh;\r\n        string generationPeriod;\r\n        address owner;\r\n        bool exists;\r\n        bool retired;\r\n    }\r\n\r\n    mapping(uint256 => Certificate) public certificates;\r\n\r\n    event CertificateIssued(\r\n        uint256 indexed certificateId,\r\n        address indexed owner,\r\n        string generatorName\r\n    );\r\n\r\n    event CertificateRetired(\r\n    uint256 indexed certificateId,\r\n    address indexed owner\r\n    );\r\n\r\n\r\n    constructor() {\r\n        issuer = msg.sender;\r\n    }\r\n\r\n    modifier onlyIssuer() {\r\n        require(\r\n            msg.sender == issuer,\r\n            \"Only issuer can issue certificates\"\r\n        );\r\n\r\n        _;\r\n    }\r\n\r\n    function issueCertificate(\r\n        string memory generatorName,\r\n        string memory energySource,\r\n        uint256 energyMWh,\r\n        string memory generationPeriod,\r\n        address owner\r\n    )\r\n        public\r\n        onlyIssuer\r\n        returns (uint256)\r\n    {\r\n        require(\r\n            owner != address(0),\r\n            \"Invalid owner address\"\r\n        );\r\n\r\n        require(\r\n            energyMWh > 0,\r\n            \"Energy amount must be greater than zero\"\r\n        );\r\n\r\n        uint256 certificateId = nextCertificateId;\r\n\r\n        certificates[certificateId] = Certificate({\r\n            id: certificateId,\r\n            generatorName: generatorName,\r\n            energySource: energySource,\r\n            energyMWh: energyMWh,\r\n            generationPeriod: generationPeriod,\r\n            owner: owner,\r\n            exists: true,\r\n            retired: false\r\n        });\r\n\r\n        nextCertificateId++;\r\n\r\n        emit CertificateIssued(\r\n            certificateId,\r\n            owner,\r\n            generatorName\r\n        );\r\n\r\n        return certificateId;\r\n    }\r\n\r\n    function getCertificate(\r\n        uint256 certificateId\r\n    )\r\n        public\r\n        view\r\n        returns (Certificate memory)\r\n    {\r\n        require(\r\n            certificates[certificateId].exists,\r\n            \"Certificate does not exist\"\r\n        );\r\n\r\n        return certificates[certificateId];\r\n    }\r\n    event CertificateTransferred(\r\n    uint256 indexed certificateId,\r\n    address indexed from,\r\n    address indexed to\r\n);\r\n\r\nfunction transferCertificate(uint256 certificateId, address newOwner) public {\r\n    Certificate storage certificate = certificates[certificateId];\r\n\r\n    require(certificate.exists, \"Certificate does not exist\");\r\n    require(msg.sender == certificate.owner, \"Only owner can transfer\");\r\n    require(!certificate.retired, \"Cannot transfer retired certificate\");\r\n    require(newOwner != address(0), \"Invalid new owner address\");\r\n\r\n    address previousOwner = certificate.owner;\r\n    certificate.owner = newOwner;\r\n\r\n    emit CertificateTransferred(certificateId, previousOwner, newOwner);\r\n}\r\n\r\nfunction retireCertificate(uint256 certificateId) public {\r\n    Certificate storage certificate = certificates[certificateId];\r\n\r\n    require(certificate.exists, \"Certificate does not exist\");\r\n    require(msg.sender == certificate.owner, \"Only owner can retire\");\r\n    require(!certificate.retired, \"Certificate already retired\");\r\n\r\n    certificate.retired = true;\r\n\r\n    emit CertificateRetired(certificateId, msg.sender);\r\n}\r\n}\r\n"
+      }
+    }
+  }
+}
