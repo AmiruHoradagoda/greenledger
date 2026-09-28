@@ -1,0 +1,35 @@
+# Node.js dependencies
+node_modules/
+
+# Hardhat generated output
+artifacts/
+cache/
+coverage/
+coverage.json
+typechain-types/
+
+# Build output (including the future React frontend)
+dist/
+build/
+.vite/
+*.tsbuildinfo
+
+# Environment variables (keep the example trackable)
+.env
+.env.*
+!.env.example
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# OS files
+Thumbs.db
+.DS_Store
+Desktop.ini
