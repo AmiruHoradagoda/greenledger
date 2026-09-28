@@ -1,13 +1,23 @@
 import { network } from "hardhat";
 
 const { viem } = await network.create({ network: "localhost" });
+const contractAddress = process.env.GREENLEDGER_ADDRESS;
 
+if (!contractAddress || !/^0x[a-fA-F0-9]{40}$/.test(contractAddress)) {
+  throw new Error("Set a valid GREENLEDGER_ADDRESS");
+}
 const greenLedger = await viem.getContractAt(
   "GreenLedger",
-  "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+  contractAddress as `0x${string}`,
 );
 
-const certificate = await greenLedger.read.getCertificate([1n]);
+const idText = process.env.CERTIFICATE_ID;
+
+if (!idText || !/^[1-9]\d*$/.test(idText)) {
+  throw new Error("Provide a positive certificate ID");
+}
+
+const certificate = await greenLedger.read.getCertificate([BigInt(idText)]);
 
 console.log("ID:", certificate.id);
 console.log("Generator:", certificate.generatorName);
