@@ -3,10 +3,14 @@ import { network } from "hardhat";
 const { viem } = await network.create({ network: "localhost" });
 const publicClient = await viem.getPublicClient();
 const wallets = await viem.getWalletClients();
+const contractAddress = process.env.GREENLEDGER_ADDRESS;
 
+if (!contractAddress || !/^0x[a-fA-F0-9]{40}$/.test(contractAddress)) {
+  throw new Error("Set a valid GREENLEDGER_ADDRESS");
+}
 const greenLedger = await viem.getContractAt(
   "GreenLedger",
-  "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+  contractAddress as `0x${string}`,
 );
 
 const owner = wallets[1].account.address;
