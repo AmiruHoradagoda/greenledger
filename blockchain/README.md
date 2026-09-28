@@ -1,57 +1,83 @@
-# Sample Hardhat 3 Project (`node:test` and `viem`)
+# GreenLedger smart contract
 
-This project showcases a Hardhat 3 project using the native Node.js test runner (`node:test`) and the `viem` library for Ethereum interactions.
+GreenLedger is a Hardhat 3 prototype for tracking renewable energy certificates. An authorized issuer creates a certificate, its current owner can transfer it, and the owner can retire it after use. Anyone can read a certificate's current owner and retirement status.
 
-To learn more about Hardhat 3, please visit the [Getting Started guide](https://hardhat.org/docs/getting-started#getting-started-with-hardhat-3). To share your feedback, join our [Hardhat 3](https://hardhat.org/hardhat3-telegram-group) Telegram group or [open an issue](https://github.com/NomicFoundation/hardhat/issues/new) in our GitHub issue tracker.
+This `blockchain` directory contains the Solidity contract, automated tests, a local deployment module, and small scripts for a complete local demo.
 
-## Project Overview
+## Certificate lifecycle
 
-This example project includes:
+| Action | Who can call it | Result |
+| --- | --- | --- |
+| Issue | Issuer (the account that deploys the contract) | Creates a certificate with a unique ID, generator name, energy source, energy amount in MWh, generation period, and owner. |
+| Transfer | Current owner | Changes the owner and emits `CertificateTransferred`. A retired certificate cannot be transferred. |
+| Retire | Current owner | Marks the certificate as retired and emits `CertificateRetired`. It cannot be retired twice. |
+| Verify | Anyone | Reads the certificate details, current owner, and `retired` status. |
 
-- A simple Hardhat configuration file.
-- Foundry-compatible Solidity unit tests.
-- TypeScript integration tests using [`node:test`](nodejs.org/api/test.html), the new Node.js native test runner, and [`viem`](https://viem.sh/).
-- Examples demonstrating how to connect to different types of networks, including locally simulating OP mainnet.
+Issuing rejects a zero owner address and zero energy amount. Transfers reject nonexistent certificates and a zero destination address. Each state change emits an event. The contract is in `contracts/GreenLedger.sol`.
 
-## Usage
+## Requirements
 
-### Running Tests
+- Node.js and npm compatible with the dependencies in `package.json`
+- A PowerShell terminal for the commands below (or equivalent environment-variable syntax in another shell)
 
-To run all the tests in the project, execute the following command:
+Run all commands from the `blockchain` directory. Install dependencies and run the tests:
 
-```shell
+```powershell
+npm ci
 npx hardhat test
 ```
 
-You can also selectively run the Solidity or `node:test` tests:
+The tests cover issuing and its access control, stored certificate data, authorized and unauthorized transfers, retirement, repeated retirement, and transfers after retirement. The starter `Counter` tests also run.
 
-```shell
-npx hardhat test solidity
-npx hardhat test nodejs
+## Local demo
+
+Use a fresh local node and follow these steps in order. The scripts demonstrate **Certificate #1** using Hardhat's local accounts: Account 0 issues it to Account 1; Account 1 transfers it to Account 2; Account 2 retires it.
+
+**Terminal 1 — start the node and leave it running:**
+
+```powershell
+npx hardhat node
 ```
 
-### Make a deployment to Sepolia
+**Terminal 2 — deploy the contract:**
 
-This project includes an example Ignition module to deploy the contract. You can deploy this module to a locally simulated chain or to Sepolia.
+If `ignition/deployments/chain-31337` exists from an earlier run, remove that local deployment record before deploying to a fresh node. The current repository includes a prior local deployment record, so do this after cloning it:
 
-To run the deployment to a local chain:
-
-```shell
-npx hardhat ignition deploy ignition/modules/Counter.ts
+```powershell
+Remove-Item -Recurse -Force .\ignition\deployments\chain-31337
 ```
 
-To run the deployment to Sepolia, you need an account with funds to send the transaction. The provided Hardhat configuration includes a Configuration Variable called `SEPOLIA_PRIVATE_KEY`, which you can use to set the private key of the account you want to use.
+This deletes only the local Ignition deployment record, not the contract source. Then deploy:
 
-You can set the `SEPOLIA_PRIVATE_KEY` variable using the `hardhat-keystore` plugin or by setting it as an environment variable.
-
-To set the `SEPOLIA_PRIVATE_KEY` config variable using `hardhat-keystore`:
-
-```shell
-npx hardhat keystore set SEPOLIA_PRIVATE_KEY
+```powershell
+npx hardhat ignition deploy ignition/modules/GreenLedger.ts --network localhost
 ```
 
-After setting the variable, you can run the deployment with the Sepolia network:
+Copy `GreenLedgerModule#GreenLedger` from the deployed addresses in the output. Set it in the same Terminal 2 session:
 
-```shell
-npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
+```powershell
+$env:GREENLEDGER_ADDRESS = "<deployed contract address>"
 ```
+
+Run the lifecycle scripts in order:
+
+```powershell
+npx hardhat run scripts/issue-certificate.ts --network localhost
+npx hardhat run scripts/transfer-certificate.ts --network localhost
+npx hardhat run scripts/retire-certificate.ts --network localhost
+```
+
+Finally, verify Certificate #1:
+
+```powershell
+$env:CERTIFICATE_ID = "1"
+npx hardhat run scripts/verify-certificate.ts --network localhost
+```
+
+The final output should show `Status: Retired` and Account 2 as the current owner. `GREENLEDGER_ADDRESS` must be set in the terminal that runs the scripts. The issue, transfer, and retire demo scripts use Certificate #1 and local accounts 0–2; run this sequence once on a fresh deployment. The verify script accepts another positive certificate ID through `CERTIFICATE_ID`.
+
+The local node's blockchain state is temporary. Stopping or restarting it clears certificates and transactions. Remove the prior local Ignition deployment record and redeploy before repeating the demo.
+
+## Scope
+
+This is a learning prototype. Certificate details are supplied by the issuer; the contract does not independently measure energy production or verify the generator's evidence. It is not an ERC-721 token or a production registry.
