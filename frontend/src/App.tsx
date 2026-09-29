@@ -1,122 +1,163 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { parseEventLogs, type Address, type Hash } from 'viem'
+import { abi, address, chain, errorMessage, ownerAddress, positiveInteger, publicClient, readCertificate, readyContract, type Certificate } from './ledger'
+import { useWallet } from './useWallet'
 import './App.css'
 
+type Notice = { kind: 'success' | 'error' | 'loading'; text: string; hash?: Hash }
+const sameAddress = (a?: string, b?: string) => !!a && !!b && a.toLowerCase() === b.toLowerCase()
+
 function App() {
-  const [count, setCount] = useState(0)
+  const wallet = useWallet()
+  const [issuer, setIssuer] = useState<Address>()
+  const [connectionError, setConnectionError] = useState('')
+  const [id, setId] = useState('1')
+  const [certificate, setCertificate] = useState<Certificate>()
+  const [readError, setReadError] = useState('')
+  const [reading, setReading] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState<Notice>()
+  const [recipient, setRecipient] = useState('')
+  const readVersion = useRef(0)
+  const pending = useRef(false)
+  const correctNetwork = wallet.chainId === chain.id
+  const isIssuer = sameAddress(wallet.account, issuer)
+  const isOwner = sameAddress(wallet.account, certificate?.owner)
+
+  useEffect(() => {
+    let active = true
+    async function loadIssuer() {
+      try {
+        const result = await publicClient.readContract({ address: await readyContract(), abi, functionName: 'issuer' })
+        if (active) { setIssuer(result); setConnectionError('') }
+      } catch (error) { if (active) { setIssuer(undefined); setConnectionError(errorMessage(error)) } }
+    }
+    void loadIssuer()
+    const timer = window.setInterval(() => void loadIssuer(), 10_000)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [])
+
+  async function verify(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const version = ++readVersion.current
+    setReading(true); setReadError(''); setCertificate(undefined)
+    try {
+      const result = await readCertificate(positiveInteger(id.trim(), 'Certificate ID'))
+      if (version === readVersion.current) setCertificate(result)
+    } catch (error) { if (version === readVersion.current) setReadError(errorMessage(error)) }
+    finally { if (version === readVersion.current) setReading(false) }
+  }
+
+  async function walletAction(action: () => Promise<void>) {
+    if (pending.current) return
+    pending.current = true; setBusy(true)
+    setNotice({ kind: 'loading', text: 'Continue in MetaMask…' })
+    try { await action(); setNotice({ kind: 'success', text: 'Wallet connected. Use Hardhat Local to send transactions.' }) }
+    catch (error) { setNotice({ kind: 'error', text: errorMessage(error) }) }
+    finally { pending.current = false; setBusy(false) }
+  }
+
+  async function write(action: 'issue' | 'transfer' | 'retire', form?: FormData) {
+    if (pending.current) return
+    pending.current = true; setBusy(true)
+    let hash: Hash | undefined
+    let confirmed = false
+    setNotice({ kind: 'loading', text: 'Checking transaction…' })
+    try {
+      const contract = await readyContract()
+      const { wallet: signer, account } = await wallet.signingWallet()
+      let selectedId = certificate?.id
+      const base = { address: contract, abi, account }
+      if (action === 'issue') {
+        const field = (key: string) => String(form?.get(key) ?? '').trim()
+        if (!field('generator') || !field('source') || !field('period') || !field('record')) throw new Error('Complete every certificate field, including the generation record ID.')
+        const { request } = await publicClient.simulateContract({ ...base, functionName: 'issueCertificate', args: [field('generator'), field('source'), positiveInteger(field('mwh'), 'MWh'), field('period'), ownerAddress(field('owner')), field('record')] })
+        setNotice({ kind: 'loading', text: 'Confirm issuance in MetaMask…' })
+        hash = await signer.writeContract(request)
+      } else {
+        if (selectedId === undefined) throw new Error('Verify a certificate first.')
+        if (action === 'transfer') {
+          const { request } = await publicClient.simulateContract({ ...base, functionName: 'transferCertificate', args: [selectedId, ownerAddress(recipient.trim())] })
+          setNotice({ kind: 'loading', text: 'Confirm transfer in MetaMask…' })
+          hash = await signer.writeContract(request)
+        } else {
+          const { request } = await publicClient.simulateContract({ ...base, functionName: 'retireCertificate', args: [selectedId] })
+          setNotice({ kind: 'loading', text: 'Confirm retirement in MetaMask…' })
+          hash = await signer.writeContract(request)
+        }
+      }
+      setNotice({ kind: 'loading', text: 'Transaction submitted. Waiting for confirmation…', hash })
+      const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 60_000 })
+      if (receipt.status !== 'success') throw new Error('The transaction reverted on-chain. No certificate change was applied.')
+      confirmed = true
+      if (action === 'issue') {
+        const [event] = parseEventLogs({ abi, logs: receipt.logs.filter((log) => sameAddress(log.address, contract)), eventName: 'CertificateIssued' })
+        selectedId = event?.args.certificateId
+      }
+      setNotice({ kind: 'success', text: `Certificate ${action === 'issue' ? 'issued' : action === 'transfer' ? 'transferred' : 'retired'} successfully.`, hash })
+      if (selectedId !== undefined) {
+        ++readVersion.current
+        setReading(false); setReadError(''); setCertificate(undefined); setId(selectedId.toString())
+        setCertificate(await readCertificate(selectedId))
+      }
+    } catch (error) {
+      setNotice({ kind: confirmed ? 'success' : 'error', text: confirmed ? `Transaction confirmed, but the certificate could not refresh: ${errorMessage(error)}` : `${errorMessage(error)}${hash ? ' A transaction was submitted; check its receipt before retrying.' : ''}`, hash })
+    } finally { pending.current = false; setBusy(false) }
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <div className="app-shell">
+      <header className="topbar">
+        <a className="brand" href="#"><span className="brand-mark" aria-hidden="true">G</span>GreenLedger</a>
+        <span className="network-label"><span className="dot" /> Hardhat local · 31337</span>
+      </header>
+      <main>
+        <section className="intro">
+          <div><p className="eyebrow">RENEWABLE ENERGY CERTIFICATES</p><h1>Energy recorded.<br /><span>Ownership made clear.</span></h1><p className="lede">Verify a certificate, follow its ownership, and retire it after use. One record. One certificate.</p></div>
+          <aside className="wallet-card"><p className="eyebrow">YOUR WALLET</p>
+            <p className="wallet-address">{wallet.account ?? 'No wallet connected'}</p>
+            <p className="muted">{wallet.account ? (isIssuer ? 'Issuer account' : 'Connected account') : 'Verification is public. Connect to issue, transfer, or retire.'}</p>
+            <button disabled={busy} onClick={() => void walletAction(wallet.account && !correctNetwork ? wallet.switchNetwork : wallet.connect)}>{wallet.account && !correctNetwork ? 'Switch to Hardhat' : wallet.account ? 'Reconnect MetaMask' : 'Connect MetaMask'} <span aria-hidden="true">↗</span></button>
+            {wallet.account && !correctNetwork && <p className="error-text" role="alert">Wrong network: select Hardhat Local (31337). Writes are disabled.</p>}
+          </aside>
+        </section>
+        {connectionError && <div className="notice error" role="alert">{connectionError}</div>}
+        {notice && <div className={`notice ${notice.kind}`} role={notice.kind === 'error' ? 'alert' : 'status'}><strong>{notice.text}</strong>{notice.hash && <div className="hash">Transaction hash <code>{notice.hash}</code></div>}</div>}
+        <div className="workspace">
+          <section className="panel verification" aria-labelledby="verify-title">
+            <div className="section-heading"><span className="step">01</span><div><h2 id="verify-title">Verify a certificate</h2><p className="muted">Read directly from the local blockchain. No wallet needed.</p></div></div>
+            <form className="lookup" onSubmit={(event) => void verify(event)}><label>Certificate ID<input inputMode="numeric" value={id} onChange={(event) => { setId(event.target.value); setCertificate(undefined); setReadError(''); ++readVersion.current; setReading(false) }} placeholder="e.g. 1" required disabled={busy} /></label><button disabled={reading || busy || !address}>{reading ? 'Reading…' : 'Verify'} <span aria-hidden="true">→</span></button></form>
+            {readError && <p className="notice error" role="alert">{readError}</p>}
+            {certificate ? <article className="certificate">
+              <div className="certificate-top"><p className="eyebrow">CERTIFICATE #{certificate.id.toString()}</p><span className={`badge ${certificate.retired ? 'retired' : ''}`}>{certificate.retired ? 'Retired' : 'Active'}</span></div>
+              <h3>{certificate.generatorName}</h3>
+              <div className="energy"><strong>{certificate.energyMWh.toString()}</strong><span>MWh of renewable energy</span></div>
+              <dl><div><dt>Energy source</dt><dd>{certificate.energySource}</dd></div><div><dt>Generation period</dt><dd>{certificate.generationPeriod}</dd></div><div className="full"><dt>Generation record ID</dt><dd>{certificate.generationRecordId}</dd></div><div className="full"><dt>Current owner</dt><dd className="mono">{certificate.owner}</dd></div></dl>
+              <p className="certificate-note">{certificate.retired ? 'Retired permanently. This certificate cannot be transferred or retired again.' : 'Active and available for transfer or retirement by its current owner.'}</p>
+            </article> : <div className="empty-state"><span aria-hidden="true">↗</span><h3>A clear view of every record.</h3><p>Enter an issued certificate ID to see its energy details, current owner, and status.</p></div>}
+            <div className="owner-section"><div className="section-heading"><span className="step">03</span><div><h2>Owner actions</h2><p className="muted">Applies to the certificate displayed above.</p></div></div>
+              <p className="muted">{!certificate ? 'Verify a certificate to continue.' : certificate.retired ? 'This certificate is retired. No further owner actions are available.' : !isOwner ? 'Connect the current owner’s account to transfer or retire.' : 'You own this certificate.'}</p>
+              <form onSubmit={(event) => { event.preventDefault(); void write('transfer') }}><fieldset disabled={busy || !correctNetwork || !isOwner || !certificate || certificate.retired}><label>New owner address<input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="0x…" required /></label><div className="action-row"><button type="submit" className="secondary">Transfer certificate</button><button type="button" className="retire-button" onClick={() => { if (window.confirm(`Permanently retire certificate #${certificate?.id}? It cannot be transferred or retired again.`)) void write('retire') }}>Retire permanently</button></div></fieldset></form>
+            </div>
+          </section>
+          <section className="panel issuance" aria-labelledby="issue-title"><div className="section-heading"><span className="step">02</span><div><h2 id="issue-title">Issue a certificate</h2><p className="muted">Register one external energy generation record.</p></div></div>
+            <p className="access-note">{isIssuer ? 'Issuer account connected.' : 'Only the contract issuer can issue certificates.'}</p>
+            <form onSubmit={(event) => { event.preventDefault(); void write('issue', new FormData(event.currentTarget)) }}>
+              <fieldset disabled={busy || !correctNetwork || !isIssuer || !address}>
+                <label>Generator name<input name="generator" defaultValue="Hambantota Solar Farm" required /></label>
+                <div className="form-grid"><label>Energy source<input name="source" defaultValue="Solar" required /></label><label>Energy (MWh)<input name="mwh" defaultValue="1" inputMode="numeric" pattern="[1-9][0-9]*" required /></label></div>
+                <label>Generation period<input name="period" type="month" defaultValue="2026-09" required /></label>
+                <label>Generation record ID<input name="record" placeholder="HAMBANTOTA-SOLAR-2026-09-002" required /><span className="field-hint">Required and unique. IDs are case-sensitive.</span></label>
+                <label>Initial owner address<input name="owner" placeholder="0x…" required /></label>
+                <button className="issue-button" type="submit">Issue certificate <span aria-hidden="true">↗</span></button>
+              </fieldset>
+            </form>
+            <div className="issuer-info"><span className="eyebrow">CONTRACT ISSUER</span><p className="mono">{issuer ?? 'Waiting for local contract…'}</p></div>
+          </section>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+        <footer><p>GreenLedger <span>·</span> EC8204 Blockchain and Cyber Security</p><p>Local demo. Record IDs prevent reuse; energy measurements are not independently verified.</p><p className="mono">Contract: {address ?? 'Not configured'}</p></footer>
+      </main>
+    </div>
   )
 }
-
 export default App
