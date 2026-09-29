@@ -15,6 +15,8 @@ This `blockchain` directory contains the Solidity contract, automated tests, a l
 
 Issuing rejects a zero owner address and zero energy amount. Transfers reject nonexistent certificates and a zero destination address. Each state change emits an event. The contract is in `contracts/GreenLedger.sol`.
 
+Each certificate represents one external energy generation record. `generationRecordId` is a required, non-empty string stored in the certificate and supplied as the final argument to `issueCertificate(generatorName, energySource, energyMWh, generationPeriod, owner, generationRecordId)`. The same exact ID cannot issue a second certificate in this contract, including after transfer or retirement. IDs are case-sensitive. This prevents reuse of an ID; the contract does not verify the underlying energy measurement or detect the same measurement submitted under a different ID.
+
 ## Requirements
 
 - Node.js and npm compatible with the dependencies in `package.json`
@@ -27,11 +29,15 @@ npm ci
 npx hardhat test
 ```
 
-The tests cover issuing and its access control, stored certificate data, authorized and unauthorized transfers, retirement, repeated retirement, and transfers after retirement.
+The tests cover issuing and its access control, stored certificate data, empty and duplicate generation record IDs, issuance with a different record ID, authorized and unauthorized transfers, retirement, repeated retirement, and transfers after retirement.
 
 ## Local demo
 
 Use a fresh local node and follow these steps in order. The scripts demonstrate **Certificate #1** using Hardhat's local accounts: Account 0 issues it to Account 1; Account 1 transfers it to Account 2; Account 2 retires it.
+
+The issue script supplies `HAMBANTOTA-SOLAR-2026-09-001` as the generation record ID for 1 MWh from Hambantota Solar Farm in `2026-09`. Running it again against the same deployment is rejected as duplicate issuance. Deploy the updated contract before running these scripts; an older deployment does not support the new issuance argument.
+
+If PowerShell blocks `npx.ps1`, use `npx.cmd` in place of `npx` in the commands below.
 
 **Terminal 1 — start the node and leave it running:**
 
