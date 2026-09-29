@@ -17,6 +17,7 @@ describe("GreenLedger", async function () {
         1n,
         "2026-09",
         owner,
+        "HAMBANTOTA-SOLAR-2026-09-001",
       ]),
       greenLedger,
       "CertificateIssued",
@@ -49,6 +50,7 @@ describe("GreenLedger", async function () {
         1n,
         "2026-09",
         owner,
+        "HAMBANTOTA-SOLAR-2026-09-001",
       ]),
       "Only issuer can issue certificates",
     );
@@ -64,6 +66,7 @@ describe("GreenLedger", async function () {
       1n,
       "2026-09",
       owner,
+      "HAMBANTOTA-SOLAR-2026-09-001",
     ]);
 
     const certificate = await greenLedger.read.certificates([1n]);
@@ -75,6 +78,41 @@ describe("GreenLedger", async function () {
     assert.equal(certificate[4], "2026-09");
     assert.equal(certificate[5].toLowerCase(), owner.toLowerCase());
     assert.equal(certificate[6], true);
+    assert.equal(certificate[8], "HAMBANTOTA-SOLAR-2026-09-001");
+  });
+  it("should reject duplicate generation record issuance", async function () {
+    const greenLedger = await viem.deployContract("GreenLedger");
+    const owner = "0x0000000000000000000000000000000000000001";
+    const args = [
+      "Hambantota Solar Farm", "Solar", 1n, "2026-09", owner,
+      "HAMBANTOTA-SOLAR-2026-09-001",
+    ] as const;
+
+    await greenLedger.write.issueCertificate(args);
+    await viem.assertions.revertWith(
+      greenLedger.write.issueCertificate(args),
+      "Generation record already issued",
+    );
+    assert.equal(await greenLedger.read.nextCertificateId(), 2n);
+
+    // A distinct external record can still be issued.
+    await greenLedger.write.issueCertificate([
+      "Hambantota Solar Farm", "Solar", 1n, "2026-09", owner,
+      "HAMBANTOTA-SOLAR-2026-09-002",
+    ]);
+    const secondCertificate = await greenLedger.read.getCertificate([2n]);
+    assert.equal(secondCertificate.generationRecordId, "HAMBANTOTA-SOLAR-2026-09-002");
+  });
+  it("should reject an empty generation record ID", async function () {
+    const greenLedger = await viem.deployContract("GreenLedger");
+    const owner = "0x0000000000000000000000000000000000000001";
+
+    await viem.assertions.revertWith(
+      greenLedger.write.issueCertificate([
+        "Hambantota Solar Farm", "Solar", 1n, "2026-09", owner, "",
+      ]),
+      "Generation record ID is required",
+    );
   });
   it("should allow the owner to transfer a certificate", async function () {
     const greenLedger = await viem.deployContract("GreenLedger");
@@ -88,6 +126,7 @@ describe("GreenLedger", async function () {
       1n,
       "2026-09",
       owner.account.address,
+      "HAMBANTOTA-SOLAR-2026-09-001",
     ]);
 
     const contractAsOwner = await viem.getContractAt(
@@ -122,6 +161,7 @@ describe("GreenLedger", async function () {
       1n,
       "2026-09",
       owner.account.address,
+      "HAMBANTOTA-SOLAR-2026-09-001",
     ]);
 
     const contractAsNonOwner = await viem.getContractAt(
@@ -149,6 +189,7 @@ describe("GreenLedger", async function () {
       1n,
       "2026-09",
       owner.account.address,
+      "HAMBANTOTA-SOLAR-2026-09-001",
     ]);
 
     const contractAsOwner = await viem.getContractAt(
@@ -177,6 +218,7 @@ describe("GreenLedger", async function () {
       1n,
       "2026-09",
       owner.account.address,
+      "HAMBANTOTA-SOLAR-2026-09-001",
     ]);
 
     const contractAsOwner = await viem.getContractAt(
@@ -204,6 +246,7 @@ describe("GreenLedger", async function () {
       1n,
       "2026-09",
       owner.account.address,
+      "HAMBANTOTA-SOLAR-2026-09-001",
     ]);
 
     const contractAsOwner = await viem.getContractAt(
@@ -231,6 +274,7 @@ describe("GreenLedger", async function () {
       1n,
       "2026-09",
       owner.account.address,
+      "HAMBANTOTA-SOLAR-2026-09-001",
     ]);
 
     const contractAsNonOwner = await viem.getContractAt(

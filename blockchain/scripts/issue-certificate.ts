@@ -21,6 +21,7 @@ const hash = await greenLedger.write.issueCertificate([
   1n,
   "2026-09",
   owner,
+  "HAMBANTOTA-SOLAR-2026-09-001",
 ]);
 
 await publicClient.waitForTransactionReceipt({ hash });

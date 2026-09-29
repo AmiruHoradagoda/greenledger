@@ -18,9 +18,11 @@ contract GreenLedger {
         address owner;
         bool exists;
         bool retired;
+        string generationRecordId;
     }
 
     mapping(uint256 => Certificate) public certificates;
+    mapping(string => bool) private issuedGenerationRecords;
 
     event CertificateIssued(
         uint256 indexed certificateId,
@@ -52,12 +54,16 @@ contract GreenLedger {
         string memory energySource,
         uint256 energyMWh,
         string memory generationPeriod,
-        address owner
+        address owner,
+        string memory generationRecordId
     )
         public
         onlyIssuer
         returns (uint256)
     {
+        require(bytes(generationRecordId).length > 0, "Generation record ID is required");
+        require(!issuedGenerationRecords[generationRecordId], "Generation record already issued");
+
         require(
             owner != address(0),
             "Invalid owner address"
@@ -78,9 +84,11 @@ contract GreenLedger {
             generationPeriod: generationPeriod,
             owner: owner,
             exists: true,
-            retired: false
+            retired: false,
+            generationRecordId: generationRecordId
         });
 
+        issuedGenerationRecords[generationRecordId] = true;
         nextCertificateId++;
 
         emit CertificateIssued(
