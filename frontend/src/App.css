@@ -15,7 +15,13 @@ h1 span { color: #70855c; }
 button { display: inline-flex; align-items: center; justify-content: center; gap: 15px; background: #274f37; border: 1px solid #274f37; color: #fff; border-radius: 6px; padding: 11px 17px; font-weight: 600; font-size: 12px; transition: background .15s; }
 button:hover:not(:disabled) { background: #3d6444; }
 .wallet-card button { width: 100%; justify-content: space-between; margin-top: 19px; }
-.workspace { display: grid; grid-template-columns: 1.35fr 1fr; gap: 24px; align-items: start; }
+.workspace { display: grid; grid-template-columns: minmax(0, 860px); justify-content: center; gap: 24px; align-items: start; }
+.steps { display: flex; justify-content: center; gap: 10px; margin: 0 0 22px; position: sticky; top: 0; z-index: 5; padding: 10px 0; background: #f6f8f2ee; backdrop-filter: blur(6px); }
+.steps a { display: flex; gap: 8px; align-items: center; padding: 7px 14px; border: 1px solid #d7dfca; border-radius: 20px; font-size: 12px; font-weight: 650; color: #315239; text-decoration: none; background: #fff; }
+.steps b { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: #234b35; color: #d6f48a; font-size: 11px; }
+html { scroll-behavior: smooth; scroll-padding-top: 64px; }
+.issuance .form-grid, .issuance fieldset { }
+.actions .action-row { margin-top: 4px; }
 .panel { background: #fff; border: 1px solid #dce2d7; border-radius: 12px; padding: 26px; min-width: 0; }
 .section-heading { display: flex; align-items: start; gap: 13px; margin-bottom: 21px; }
 .step { background: #f0f3e9; border: 1px solid #e1e8d8; border-radius: 6px; font-size: 11px; padding: 5px 7px; margin-top: 2px; color: #768765; }
@@ -85,3 +91,26 @@ footer span { margin: 0 8px; }
 .revoke-box, .mine { border-top: 1px solid #e5e9df; padding-top: 18px; margin-top: 22px; }
 .revoke-box form { margin-top: 12px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+
+.validation { border-top: 1px solid #dce3d2; margin-top: 18px; padding-top: 16px; }
+.verdict-banner { display: grid; gap: 4px; padding: 14px 16px; border-radius: 8px; border: 1px solid; margin-bottom: 16px; }
+.verdict-banner strong { font-size: 15px; letter-spacing: .3px; }
+.verdict-banner span { font-size: 12px; }
+.verdict-banner.ok { background: #e2f1d8; border-color: #a9cf94; color: #24501f; }
+.verdict-banner.warn { background: #fff6dd; border-color: #e5d08a; color: #6b5310; }
+.verdict-banner.bad { background: #fff0ea; border-color: #e7c3b7; color: #823e29; }
+.checks { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 12px; }
+.checks li { display: flex; gap: 12px; padding: 12px; border-radius: 8px; background: #fff; border: 1px solid #dce3d2; }
+.checks li.fail { border-color: #e7c3b7; background: #fff8f5; }
+.checks .mark { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 13px; }
+.checks .pass .mark { background: #dcecc7; color: #2f6b2a; }
+.checks .fail .mark { background: #f6d5c9; color: #a13a1e; }
+.checks strong { font-size: 13px; }
+.checks p { margin: 2px 0 8px; }
+.compare { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: 11px; }
+.compare span { color: #687567; }
+.compare code { overflow-wrap: anywhere; }
+
+.actions .revoke-box { margin-top: 26px; }
+.mine { border-top: 0; margin-top: 16px; padding-top: 0; }

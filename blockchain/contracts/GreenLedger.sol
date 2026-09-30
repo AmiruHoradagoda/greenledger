@@ -20,6 +20,8 @@ contract GreenLedger {
         bool retired;
         string generationRecordId;
         bool revoked;
+        // keccak256 of the immutable certificate details (see computeFingerprint).
+        bytes32 fingerprint;
     }
 
     mapping(uint256 => Certificate) public certificates;
@@ -108,7 +110,14 @@ contract GreenLedger {
             exists: true,
             retired: false,
             generationRecordId: generationRecordId,
-            revoked: false
+            revoked: false,
+            fingerprint: computeFingerprint(
+                generatorName,
+                energySource,
+                energyMWh,
+                generationPeriod,
+                generationRecordId
+            )
         });
 
         issuedGenerationRecords[generationRecordId] = true;
@@ -123,6 +132,37 @@ contract GreenLedger {
         );
 
         return certificateId;
+    }
+
+    // Hash of the details that identify the energy claim. The owner is
+    // excluded because it changes on transfer. Anyone can recompute this
+    // off-chain and compare it with the stored value to check a claimed
+    // certificate.
+    function computeFingerprint(
+        string memory generatorName,
+        string memory energySource,
+        uint256 energyMWh,
+        string memory generationPeriod,
+        string memory generationRecordId
+    ) public pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                generatorName,
+                energySource,
+                energyMWh,
+                generationPeriod,
+                generationRecordId
+            )
+        );
+    }
+
+    // True when the supplied hash equals the fingerprint stored at issuance.
+    function verifyFingerprint(
+        uint256 certificateId,
+        bytes32 fingerprint
+    ) public view returns (bool) {
+        require(certificates[certificateId].exists, "Certificate does not exist");
+        return certificates[certificateId].fingerprint == fingerprint;
     }
 
     // Step 1 of issuer rotation: the current issuer nominates a successor.

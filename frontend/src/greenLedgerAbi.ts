@@ -215,9 +215,53 @@ export const greenLedgerAbi = [
         "internalType": "bool",
         "name": "revoked",
         "type": "bool"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "fingerprint",
+        "type": "bytes32"
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "generatorName",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "energySource",
+        "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "energyMWh",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "generationPeriod",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "generationRecordId",
+        "type": "string"
+      }
+    ],
+    "name": "computeFingerprint",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -281,6 +325,11 @@ export const greenLedgerAbi = [
             "internalType": "bool",
             "name": "revoked",
             "type": "bool"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "fingerprint",
+            "type": "bytes32"
           }
         ],
         "internalType": "struct GreenLedger.Certificate",
@@ -434,6 +483,30 @@ export const greenLedgerAbi = [
     "name": "transferIssuer",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "certificateId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "fingerprint",
+        "type": "bytes32"
+      }
+    ],
+    "name": "verifyFingerprint",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   }
 ] as const

@@ -89,7 +89,7 @@ The local node's blockchain state is temporary. Stopping or restarting it clears
 ## Coverage, security scan and Sepolia
 
 ```bash
-npx hardhat test --coverage        # 18 tests, 100% line coverage of the contract
+npx hardhat test --coverage        # 20 tests, 100% line coverage of the contract
 slither contracts/GreenLedger.sol  # pip install slither-analyzer; 0 findings
 ```
 

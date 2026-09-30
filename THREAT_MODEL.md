@@ -1,6 +1,6 @@
 # GreenLedger threat model and security review
 
-Scope: `blockchain/contracts/GreenLedger.sol` and the React frontend. Method: manual review, 18 unit tests (100% line/statement coverage via `npx hardhat test --coverage`), and Slither 0.11.6 (`slither contracts/GreenLedger.sol`: 0 findings across 102 detectors).
+Scope: `blockchain/contracts/GreenLedger.sol` and the React frontend. Method: manual review, 20 unit tests (100% line/statement coverage via `npx hardhat test --coverage`), and Slither 0.11.6 (`slither contracts/GreenLedger.sol`: 0 findings across 102 detectors).
 
 ## Assets and actors
 - **Assets:** integrity of certificate records, uniqueness of each generation record, correct ownership, irreversibility of retirement.
@@ -21,7 +21,8 @@ Scope: `blockchain/contracts/GreenLedger.sol` and the React frontend. Method: ma
 | 9 | Front-running | Actions are valid only for the sender's own certificate or the issuer, so ordering gives no gain. A public mempool observer could take a record ID first only if they are the issuer | Low |
 | 10 | Tampered frontend shows false data | Contract is authoritative; writes are simulated then confirmed in the wallet; verify links read straight from the chain | User must trust the site they load |
 | 11 | Zero address / zero energy / empty ID | Explicit `require` checks; tested | None |
-| 12 | Denial of service | No loops over user-controlled data | Gas cost of long strings is paid by the issuer |
+| 12 | Forged or altered certificate details shown to a verifier | Issuance stores a keccak256 fingerprint of generator, source, MWh, period and record ID; the UI validates from the certificate ID alone: it recomputes the hash from the on-chain fields, confirms the issuer, record uniqueness and ownership trail, and shows expected vs found for each check | Owner is not in the hash; an issuer can still issue false data |
+| 13 | Denial of service | No loops over user-controlled data | Gas cost of long strings is paid by the issuer |
 
 ## Known limitations
 - The contract cannot check that the energy was really generated. The issuer is a trusted oracle. A production system would use signed meter data or an oracle.

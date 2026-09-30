@@ -1,4 +1,4 @@
-import { BaseError, type Address, type Hash, ContractFunctionRevertedError, createPublicClient, http, isAddress, zeroAddress } from 'viem'
+import { BaseError, getAddress, encodeAbiParameters, keccak256, type Address, type Hash, ContractFunctionRevertedError, createPublicClient, http, isAddress, zeroAddress } from 'viem'
 import { hardhat, sepolia } from 'viem/chains'
 import { greenLedgerAbi } from './greenLedgerAbi'
 
@@ -49,9 +49,9 @@ export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'The request failed. Check MetaMask and the local node, then retry.'
 }
 
-export type HistoryEvent = { kind: 'Issued' | 'Transferred' | 'Retired' | 'Revoked'; id: bigint; block: bigint; hash: Hash; detail: string; actor?: Address }
+export type HistoryEvent = { kind: 'Issued' | 'Transferred' | 'Retired' | 'Revoked'; id: bigint; block: bigint; hash: Hash; detail: string; actor?: Address; from?: Address; recordId?: string }
 
-async function ledgerLogs() {
+export async function ledgerLogs() {
   const contract = await readyContract()
   const [issued, transferred, retired, revoked] = await Promise.all([
     publicClient.getContractEvents({ address: contract, abi, eventName: 'CertificateIssued', fromBlock: deployBlock }),
@@ -60,8 +60,8 @@ async function ledgerLogs() {
     publicClient.getContractEvents({ address: contract, abi, eventName: 'CertificateRevoked', fromBlock: deployBlock }),
   ])
   const events: HistoryEvent[] = [
-    ...issued.map((l) => ({ kind: 'Issued' as const, id: l.args.certificateId!, block: l.blockNumber, hash: l.transactionHash, actor: l.args.owner, detail: `Issued to ${l.args.owner} · ${l.args.energyMWh} MWh` })),
-    ...transferred.map((l) => ({ kind: 'Transferred' as const, id: l.args.certificateId!, block: l.blockNumber, hash: l.transactionHash, actor: l.args.to, detail: `${l.args.from} → ${l.args.to}` })),
+    ...issued.map((l) => ({ kind: 'Issued' as const, id: l.args.certificateId!, block: l.blockNumber, hash: l.transactionHash, actor: l.args.owner, recordId: l.args.generationRecordId, detail: `Issued to ${l.args.owner} · ${l.args.energyMWh} MWh` })),
+    ...transferred.map((l) => ({ kind: 'Transferred' as const, id: l.args.certificateId!, block: l.blockNumber, hash: l.transactionHash, actor: l.args.to, from: l.args.from, detail: `${l.args.from} → ${l.args.to}` })),
     ...retired.map((l) => ({ kind: 'Retired' as const, id: l.args.certificateId!, block: l.blockNumber, hash: l.transactionHash, actor: l.args.owner, detail: `Retired by ${l.args.owner}` })),
     ...revoked.map((l) => ({ kind: 'Revoked' as const, id: l.args.certificateId!, block: l.blockNumber, hash: l.transactionHash, actor: l.args.revokedBy, detail: `Revoked by issuer: ${l.args.reason}` })),
   ]
@@ -81,4 +81,53 @@ export async function readOwnedIds(account: Address) {
 
 export function verifyLink(id: bigint) {
   return `${window.location.origin}${window.location.pathname}?id=${id}`
+}
+
+export type Check = { title: string; what: string; expected: string; actual: string; ok: boolean }
+export type Validation = { checks: Check[]; verdict: 'valid' | 'retired' | 'revoked' | 'invalid' }
+
+// Automated validation from a certificate ID alone: every check reads the chain, nothing is typed in by hand.
+export async function validateCertificate(certificate: Certificate): Promise<Validation> {
+  const contract = await readyContract()
+  const events = await ledgerLogs()
+  const mine = events.filter((event) => event.id === certificate.id)
+  const issue = mine.find((event) => event.kind === 'Issued')
+  const checks: Check[] = []
+
+  // 1. Integrity: rebuild the fingerprint from the stored fields and compare with the fingerprint fixed at issuance.
+  const recomputed = keccak256(encodeAbiParameters(
+    [{ type: 'string' }, { type: 'string' }, { type: 'uint256' }, { type: 'string' }, { type: 'string' }],
+    [certificate.generatorName, certificate.energySource, certificate.energyMWh, certificate.generationPeriod, certificate.generationRecordId],
+  ))
+  const onChainOk = await publicClient.readContract({ address: contract, abi, functionName: 'verifyFingerprint', args: [certificate.id, recomputed] })
+  checks.push({ title: 'Details are unaltered', what: 'Hash the certificate fields now (generator, source, MWh, period, record ID) and compare with the fingerprint stored when it was issued.', expected: certificate.fingerprint, actual: recomputed, ok: onChainOk && recomputed === certificate.fingerprint })
+
+  // 2. Issued by the authorised issuer at that time.
+  const rotations = (await publicClient.getContractEvents({ address: contract, abi, eventName: 'IssuerTransferred', fromBlock: deployBlock }))
+  const currentIssuer = await publicClient.readContract({ address: contract, abi, functionName: 'issuer' })
+  let sender: Address | undefined
+  let issuerAtTime: Address = rotations[0]?.args.previousIssuer ?? currentIssuer
+  if (issue) {
+    sender = getAddress((await publicClient.getTransaction({ hash: issue.hash })).from)
+    for (const rotation of rotations) if (rotation.blockNumber <= issue.block) issuerAtTime = rotation.args.newIssuer!
+  }
+  checks.push({ title: 'Issued by the authorised issuer', what: 'The account that sent the issuing transaction must be the registry issuer at that block.', expected: issuerAtTime, actual: sender ?? 'No issuing transaction found', ok: !!sender && sender.toLowerCase() === issuerAtTime.toLowerCase() })
+
+  // 3. Record ID used only once (no double counting).
+  const sameRecord = events.filter((event) => event.kind === 'Issued' && event.recordId === certificate.generationRecordId).length
+  checks.push({ title: 'Energy record counted once', what: `Count certificates ever issued for generation record “${certificate.generationRecordId}”.`, expected: '1 certificate', actual: `${sameRecord} certificate${sameRecord === 1 ? '' : 's'}`, ok: sameRecord === 1 })
+
+  // 4. Ownership chain: replay issue + transfers and compare with the current owner.
+  let replayed = issue?.actor
+  for (const event of mine) if (event.kind === 'Transferred') replayed = event.actor
+  const transfers = mine.filter((event) => event.kind === 'Transferred').length
+  checks.push({ title: 'Ownership trail is consistent', what: `Replay the issue and ${transfers} transfer${transfers === 1 ? '' : 's'} and compare with the current owner.`, expected: certificate.owner, actual: replayed ?? 'No issue event found', ok: !!replayed && replayed.toLowerCase() === certificate.owner.toLowerCase() })
+
+  // 5. Status.
+  const status = certificate.revoked ? 'Revoked' : certificate.retired ? 'Retired' : 'Active'
+  checks.push({ title: 'Not revoked or already used', what: 'A valid certificate is neither revoked by the issuer nor retired (already claimed).', expected: 'Active', actual: status, ok: status === 'Active' })
+
+  const integrity = checks.slice(0, 4).every((check) => check.ok)
+  const verdict = !integrity ? 'invalid' : certificate.revoked ? 'revoked' : certificate.retired ? 'retired' : 'valid'
+  return { checks, verdict }
 }

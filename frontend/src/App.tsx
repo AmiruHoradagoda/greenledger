@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { parseEventLogs, type Address, type Hash } from 'viem'
+import { ValidationReport } from './ValidationReport'
 import { QRCodeSVG } from 'qrcode.react'
 import { abi, address, chain, chainLabel, errorMessage, explorerUrl, ownerAddress, positiveInteger, publicClient, readCertificate, readHistory, readOwnedIds, readyContract, verifyLink, type Certificate, type HistoryEvent } from './ledger'
 import { useWallet } from './useWallet'
@@ -133,6 +134,7 @@ function App() {
         ++readVersion.current
         setReading(false); setReadError(''); setCertificate(undefined); setId(selectedId.toString())
         setCertificate(await readCertificate(selectedId))
+        document.getElementById('validate')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
         setHistory(await readHistory(selectedId).catch(() => []))
       }
     } catch (error) {
@@ -158,26 +160,9 @@ function App() {
         </section>
         {connectionError && <div className="notice error" role="alert">{connectionError}</div>}
         {notice && <div className={`notice ${notice.kind}`} role={notice.kind === 'error' ? 'alert' : 'status'}><strong>{notice.text}</strong>{notice.hash && <div className="hash">Transaction hash <code>{notice.hash}</code></div>}</div>}
+        <nav className="steps" aria-label="Workflow"><a href="#issue"><b>1</b> Issue</a><a href="#validate"><b>2</b> Validate</a><a href="#actions"><b>3</b> Owner actions</a></nav>
         <div className="workspace">
-          <section className="panel verification" aria-labelledby="verify-title">
-            <div className="section-heading"><span className="step">01</span><div><h2 id="verify-title">Verify a certificate</h2><p className="muted">Read directly from the blockchain. No wallet needed.</p></div></div>
-            <form className="lookup" onSubmit={(event) => void verify(event)}><label>Certificate ID<input inputMode="numeric" value={id} onChange={(event) => { setId(event.target.value); setCertificate(undefined); setReadError(''); ++readVersion.current; setReading(false) }} placeholder="e.g. 1" required disabled={busy} /></label><button disabled={reading || busy || !address}>{reading ? 'Reading…' : 'Verify'} <span aria-hidden="true">→</span></button></form>
-            {readError && <p className="notice error" role="alert">{readError}</p>}
-            {certificate ? <article className="certificate">
-              <div className="certificate-top"><p className="eyebrow">CERTIFICATE #{certificate.id.toString()}</p><span className={`badge ${certificate.retired || certificate.revoked ? 'retired' : ''}`}>{certificate.revoked ? 'Revoked' : certificate.retired ? 'Retired' : 'Active'}</span></div>
-              <h3>{certificate.generatorName}</h3>
-              <div className="energy"><strong>{certificate.energyMWh.toString()}</strong><span>MWh of renewable energy</span></div>
-              <dl><div><dt>Energy source</dt><dd>{certificate.energySource}</dd></div><div><dt>Generation period</dt><dd>{certificate.generationPeriod}</dd></div><div className="full"><dt>Generation record ID</dt><dd>{certificate.generationRecordId}</dd></div><div className="full"><dt>Current owner</dt><dd className="mono">{certificate.owner}</dd></div></dl>
-              <p className="certificate-note">{certificate.revoked ? 'Revoked by the issuer. This certificate is invalid and cannot be transferred or retired.' : certificate.retired ? 'Retired permanently. This certificate cannot be transferred or retired again.' : 'Active and available for transfer or retirement by its current owner.'}</p>
-              <div className="share"><div><p className="eyebrow">SHARE VERIFICATION</p><p className="muted">Anyone can scan or open this link to verify, no wallet needed.</p><button type="button" className="secondary" onClick={() => void copyLink()}>{copied ? 'Copied ✓' : 'Copy verify link'}</button></div><QRCodeSVG value={verifyLink(certificate.id)} size={92} /></div>
-              <div className="history"><p className="eyebrow">AUDIT TRAIL</p>{history.length === 0 ? <p className="muted">No events found.</p> : <ol>{history.map((event) => <li key={event.hash + event.kind}><span className={`kind ${event.kind.toLowerCase()}`}>{event.kind}</span><span className="mono">{event.detail}</span><span className="mono muted">block {event.block.toString()} · {explorerUrl ? <a href={`${explorerUrl}/tx/${event.hash}`} target="_blank" rel="noreferrer">{event.hash.slice(0, 12)}…</a> : `${event.hash.slice(0, 12)}…`}</span></li>)}</ol>}</div>
-            </article> : <div className="empty-state"><span aria-hidden="true">↗</span><h3>A clear view of every record.</h3><p>Enter an issued certificate ID to see its energy details, current owner, and status.</p></div>}
-            <div className="owner-section"><div className="section-heading"><span className="step">03</span><div><h2>Owner actions</h2><p className="muted">Applies to the certificate displayed above.</p></div></div>
-              <p className="muted">{!certificate ? 'Verify a certificate to continue.' : certificate.revoked ? 'This certificate was revoked. No further actions are available.' : certificate.retired ? 'This certificate is retired. No further owner actions are available.' : !isOwner ? 'Connect the current owner’s account to transfer or retire.' : 'You own this certificate.'}</p>
-              <form onSubmit={(event) => { event.preventDefault(); void write('transfer') }}><fieldset disabled={busy || !correctNetwork || !isOwner || !certificate || certificate.retired || certificate.revoked}><label>New owner address<input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="0x…" required /></label><div className="action-row"><button type="submit" className="secondary">Transfer certificate</button><button type="button" className="retire-button" onClick={() => { if (window.confirm(`Permanently retire certificate #${certificate?.id}? It cannot be transferred or retired again.`)) void write('retire') }}>Retire permanently</button></div></fieldset></form>
-            </div>
-          </section>
-          <section className="panel issuance" aria-labelledby="issue-title"><div className="section-heading"><span className="step">02</span><div><h2 id="issue-title">Issue a certificate</h2><p className="muted">Register one external energy generation record.</p></div></div>
+          <section className="panel issuance" id="issue" aria-labelledby="issue-title"><div className="section-heading"><span className="step">01</span><div><h2 id="issue-title">Issue a certificate</h2><p className="muted">Register one external energy generation record.</p></div></div>
             <p className="access-note">{isIssuer ? 'Issuer account connected.' : 'Only the contract issuer can issue certificates.'}</p>
             <form onSubmit={(event) => { event.preventDefault(); void write('issue', new FormData(event.currentTarget)) }}>
               <fieldset disabled={busy || !correctNetwork || !isIssuer || !address}>
@@ -189,10 +174,31 @@ function App() {
                 <button className="issue-button" type="submit">Issue certificate <span aria-hidden="true">↗</span></button>
               </fieldset>
             </form>
-            <div className="revoke-box"><p className="eyebrow">REVOKE (ISSUER ONLY)</p><p className="muted">Invalidate the certificate shown on the left if it was issued in error.</p>
-              <form onSubmit={(event) => { event.preventDefault(); void write('revoke') }}><fieldset disabled={busy || !correctNetwork || !isIssuer || !certificate || certificate.retired || certificate.revoked}><label>Reason<input value={revokeReason} onChange={(event) => setRevokeReason(event.target.value)} placeholder="e.g. Meter reading error" required /></label><button type="submit" className="retire-button">Revoke certificate</button></fieldset></form></div>
-            {wallet.account && <div className="mine"><p className="eyebrow">MY CERTIFICATES</p>{owned.length === 0 ? <p className="muted">This account owns no certificates.</p> : <div className="chips">{owned.map((ownedId) => <button key={ownedId.toString()} type="button" className="secondary" disabled={busy} onClick={() => { setId(ownedId.toString()); void load(ownedId.toString()) }}>#{ownedId.toString()}</button>)}</div>}</div>}
             <div className="issuer-info"><span className="eyebrow">CONTRACT ISSUER</span><p className="mono">{issuer ?? 'Waiting for local contract…'}</p></div>
+          </section>
+          <section className="panel verification" id="validate" aria-labelledby="verify-title">
+            <div className="section-heading"><span className="step">02</span><div><h2 id="verify-title">Validate a certificate</h2><p className="muted">Enter only the certificate ID (or scan its QR). The page runs every check against the blockchain. No wallet needed.</p></div></div>
+            <form className="lookup" onSubmit={(event) => void verify(event)}><label>Certificate ID<input inputMode="numeric" value={id} onChange={(event) => { setId(event.target.value); setCertificate(undefined); setReadError(''); ++readVersion.current; setReading(false) }} placeholder="e.g. 1" required disabled={busy} /></label><button disabled={reading || busy || !address}>{reading ? 'Validating…' : 'Validate'} <span aria-hidden="true">→</span></button></form>
+            {wallet.account && <div className="mine"><p className="eyebrow">MY CERTIFICATES</p>{owned.length === 0 ? <p className="muted">This account owns no certificates.</p> : <div className="chips">{owned.map((ownedId) => <button key={ownedId.toString()} type="button" className="secondary" disabled={busy} onClick={() => { setId(ownedId.toString()); void load(ownedId.toString()) }}>#{ownedId.toString()}</button>)}</div>}</div>}
+            {readError && <p className="notice error" role="alert">{readError}</p>}
+            {certificate ? <article className="certificate">
+              <div className="certificate-top"><p className="eyebrow">CERTIFICATE #{certificate.id.toString()}</p><span className={`badge ${certificate.retired || certificate.revoked ? 'retired' : ''}`}>{certificate.revoked ? 'Revoked' : certificate.retired ? 'Retired' : 'Active'}</span></div>
+              <h3>{certificate.generatorName}</h3>
+              <div className="energy"><strong>{certificate.energyMWh.toString()}</strong><span>MWh of renewable energy</span></div>
+              <dl><div><dt>Energy source</dt><dd>{certificate.energySource}</dd></div><div><dt>Generation period</dt><dd>{certificate.generationPeriod}</dd></div><div className="full"><dt>Generation record ID</dt><dd>{certificate.generationRecordId}</dd></div><div className="full"><dt>Current owner</dt><dd className="mono">{certificate.owner}</dd></div></dl>
+              <p className="certificate-note">{certificate.revoked ? 'Revoked by the issuer. This certificate is invalid and cannot be transferred or retired.' : certificate.retired ? 'Retired permanently. This certificate cannot be transferred or retired again.' : 'Active and available for transfer or retirement by its current owner.'}</p>
+              <div className="full"><p className="eyebrow">ON-CHAIN FINGERPRINT (keccak256)</p><p className="mono">{certificate.fingerprint}</p></div>
+              <ValidationReport certificate={certificate} />
+              <div className="share"><div><p className="eyebrow">SHARE VERIFICATION</p><p className="muted">Anyone can scan or open this link to verify, no wallet needed.</p><button type="button" className="secondary" onClick={() => void copyLink()}>{copied ? 'Copied ✓' : 'Copy verify link'}</button></div><QRCodeSVG value={verifyLink(certificate.id)} size={92} /></div>
+              <div className="history"><p className="eyebrow">AUDIT TRAIL</p>{history.length === 0 ? <p className="muted">No events found.</p> : <ol>{history.map((event) => <li key={event.hash + event.kind}><span className={`kind ${event.kind.toLowerCase()}`}>{event.kind}</span><span className="mono">{event.detail}</span><span className="mono muted">block {event.block.toString()} · {explorerUrl ? <a href={`${explorerUrl}/tx/${event.hash}`} target="_blank" rel="noreferrer">{event.hash.slice(0, 12)}…</a> : `${event.hash.slice(0, 12)}…`}</span></li>)}</ol>}</div>
+            </article> : <div className="empty-state"><span aria-hidden="true">↗</span><h3>A clear view of every record.</h3><p>Enter an issued certificate ID to see its energy details, current owner, and status.</p></div>}
+          </section>
+            <section className="panel actions" id="actions"><div className="section-heading"><span className="step">03</span><div><h2>Owner & issuer actions</h2><p className="muted">Applies to the certificate validated in step 2.</p></div></div>
+              <p className="muted">{!certificate ? 'Validate a certificate in step 2 to continue.' : certificate.revoked ? 'This certificate was revoked. No further actions are available.' : certificate.retired ? 'This certificate is retired. No further owner actions are available.' : !isOwner ? 'Connect the current owner’s account to transfer or retire.' : 'You own this certificate.'}</p>
+              <form onSubmit={(event) => { event.preventDefault(); void write('transfer') }}><fieldset disabled={busy || !correctNetwork || !isOwner || !certificate || certificate.retired || certificate.revoked}><label>New owner address<input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="0x…" required /></label><div className="action-row"><button type="submit" className="secondary">Transfer certificate</button><button type="button" className="retire-button" onClick={() => { if (window.confirm(`Permanently retire certificate #${certificate?.id}? It cannot be transferred or retired again.`)) void write('retire') }}>Retire permanently</button></div></fieldset></form>
+            
+            <div className="revoke-box"><p className="eyebrow">REVOKE (ISSUER ONLY)</p><p className="muted">Invalidate the certificate validated in step 2 if it was issued in error.</p>
+              <form onSubmit={(event) => { event.preventDefault(); void write('revoke') }}><fieldset disabled={busy || !correctNetwork || !isIssuer || !certificate || certificate.retired || certificate.revoked}><label>Reason<input value={revokeReason} onChange={(event) => setRevokeReason(event.target.value)} placeholder="e.g. Meter reading error" required /></label><button type="submit" className="retire-button">Revoke certificate</button></fieldset></form></div>
           </section>
         </div>
         <footer><p>GreenLedger <span>·</span> EC8204 Blockchain and Cyber Security</p><p>Local demo. Record IDs prevent reuse; energy measurements are not independently verified.</p><p className="mono">Contract: {address ?? 'Not configured'}</p></footer>

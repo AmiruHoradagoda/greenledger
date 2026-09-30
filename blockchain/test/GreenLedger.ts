@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { network } from "hardhat";
+import { encodeAbiParameters, keccak256 } from "viem";
 
 describe("GreenLedger", async function () {
   const { viem } = await network.create();
@@ -442,5 +443,31 @@ describe("GreenLedger", async function () {
     assert.equal(events.length, 1);
     assert.equal(events[0].args.energyMWh, 1n);
     assert.equal(events[0].args.generationRecordId, "R-1");
+  });
+
+  it("should store a fingerprint that matches only the exact issued details", async function () {
+    const greenLedger = await viem.deployContract("GreenLedger");
+    await greenLedger.write.issueCertificate(issueArgs("R-1"));
+    const stored = (await greenLedger.read.getCertificate([1n])).fingerprint;
+    const same = await greenLedger.read.computeFingerprint(["Hambantota Solar Farm", "Solar", 1n, "2026-09", "R-1"]);
+    const changed = await greenLedger.read.computeFingerprint(["Hambantota Solar Farm", "Solar", 2n, "2026-09", "R-1"]);
+    assert.equal(stored, same);
+    assert.notEqual(stored, changed);
+    assert.equal(await greenLedger.read.verifyFingerprint([1n, same]), true);
+    assert.equal(await greenLedger.read.verifyFingerprint([1n, changed]), false);
+    await viem.assertions.revertWith(
+      greenLedger.read.verifyFingerprint([99n, same]),
+      "Certificate does not exist",
+    );
+  });
+
+  it("should match the fingerprint the frontend computes with viem", async function () {
+    const greenLedger = await viem.deployContract("GreenLedger");
+    await greenLedger.write.issueCertificate(issueArgs("R-1"));
+    const offChain = keccak256(encodeAbiParameters(
+      [{ type: "string" }, { type: "string" }, { type: "uint256" }, { type: "string" }, { type: "string" }],
+      ["Hambantota Solar Farm", "Solar", 1n, "2026-09", "R-1"],
+    ));
+    assert.equal((await greenLedger.read.getCertificate([1n])).fingerprint, offChain);
   });
 });

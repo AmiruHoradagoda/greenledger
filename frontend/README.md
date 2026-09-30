@@ -87,6 +87,7 @@ To demonstrate duplicate protection, switch back to Account #0 and submit the sa
 
 ## Extra features
 
+- **Validate from the ID alone:** enter a certificate ID (or open a shared link/QR). The page runs five automated checks against the chain and shows expected vs found for each: details unaltered (recomputed keccak256 fingerprint vs stored), issued by the authorised issuer, energy record counted once, ownership trail consistent, not revoked/retired. The verdict is Valid, Genuine but used, Revoked or Invalid.
 - **Audit trail:** each verified certificate lists its issue, transfer, retire and revoke events with block numbers (Etherscan links on Sepolia).
 - **Share link and QR:** `?id=N` in the URL verifies that certificate on load, with no wallet. Use **Copy verify link** or scan the QR code.
 - **My certificates:** with a wallet connected, the account's current certificates appear as one-click chips.
