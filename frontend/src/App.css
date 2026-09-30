@@ -16,7 +16,7 @@ button { display: inline-flex; align-items: center; justify-content: center; gap
 button:hover:not(:disabled) { background: #3d6444; }
 .wallet-card button { width: 100%; justify-content: space-between; margin-top: 19px; }
 .workspace { display: grid; grid-template-columns: minmax(0, 860px); justify-content: center; gap: 24px; align-items: start; }
-.steps { display: flex; justify-content: center; gap: 10px; margin: 0 0 22px; position: sticky; top: 0; z-index: 5; padding: 10px 0; background: #f6f8f2ee; backdrop-filter: blur(6px); }
+.steps { display: flex; justify-content: center; gap: 10px; margin: 0 0 22px; position: sticky; top: 0; z-index: 5; padding: 10px 0; background: #f4f6efee; backdrop-filter: blur(6px); }
 .steps a { display: flex; gap: 8px; align-items: center; padding: 7px 14px; border: 1px solid #d7dfca; border-radius: 20px; font-size: 12px; font-weight: 650; color: #315239; text-decoration: none; background: #fff; }
 .steps b { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: #234b35; color: #d6f48a; font-size: 11px; }
 html { scroll-behavior: smooth; scroll-padding-top: 64px; }
