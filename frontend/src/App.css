@@ -71,3 +71,17 @@ footer p + p { margin-top: 7px; }
 footer span { margin: 0 8px; }
 @media (max-width: 820px) { .app-shell { padding: 0 20px; } .intro { gap: 24px; padding: 35px 0; } .workspace { grid-template-columns: 1fr; } .panel { padding: 22px; } }
 @media (max-width: 540px) { .topbar { height: 75px; } .brand { font-size: 20px; } .network-label { font-size: 10px; max-width: 105px; } .intro { grid-template-columns: 1fr; } .wallet-card { padding: 20px; } h1 { font-size: 38px; } .panel { padding: 18px; } .form-grid { grid-template-columns: 1fr; gap: 0; } .certificate { padding: 17px; } .action-row button { width: 100%; } }
+
+.share { display: flex; justify-content: space-between; align-items: center; gap: 16px; border-top: 1px solid #dce3d2; margin-top: 18px; padding-top: 16px; }
+.share button { margin-top: 10px; }
+.share svg { flex: none; background: #fff; padding: 6px; border-radius: 6px; }
+.history { border-top: 1px solid #dce3d2; margin-top: 18px; padding-top: 16px; }
+.history ol { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; }
+.history li { display: grid; gap: 3px; padding-left: 12px; border-left: 2px solid #b9cf9a; }
+.kind { font-size: 11px; font-weight: 700; color: #365329; }
+.kind.transferred { color: #2f5f7a; }
+.kind.retired { color: #566155; }
+.kind.revoked { color: #823e29; }
+.revoke-box, .mine { border-top: 1px solid #e5e9df; padding-top: 18px; margin-top: 22px; }
+.revoke-box form { margin-top: 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }

@@ -25,6 +25,18 @@ export const greenLedgerAbi = [
         "internalType": "string",
         "name": "generatorName",
         "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "energyMWh",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "generationRecordId",
+        "type": "string"
       }
     ],
     "name": "CertificateIssued",
@@ -61,6 +73,31 @@ export const greenLedgerAbi = [
       {
         "indexed": true,
         "internalType": "address",
+        "name": "revokedBy",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "reason",
+        "type": "string"
+      }
+    ],
+    "name": "CertificateRevoked",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "certificateId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
         "name": "from",
         "type": "address"
       },
@@ -73,6 +110,51 @@ export const greenLedgerAbi = [
     ],
     "name": "CertificateTransferred",
     "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "currentIssuer",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "pendingIssuer",
+        "type": "address"
+      }
+    ],
+    "name": "IssuerTransferStarted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "previousIssuer",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newIssuer",
+        "type": "address"
+      }
+    ],
+    "name": "IssuerTransferred",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "acceptIssuer",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
     "inputs": [
@@ -128,6 +210,11 @@ export const greenLedgerAbi = [
         "internalType": "string",
         "name": "generationRecordId",
         "type": "string"
+      },
+      {
+        "internalType": "bool",
+        "name": "revoked",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -189,6 +276,11 @@ export const greenLedgerAbi = [
             "internalType": "string",
             "name": "generationRecordId",
             "type": "string"
+          },
+          {
+            "internalType": "bool",
+            "name": "revoked",
+            "type": "bool"
           }
         ],
         "internalType": "struct GreenLedger.Certificate",
@@ -270,6 +362,19 @@ export const greenLedgerAbi = [
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "pendingIssuer",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -290,12 +395,43 @@ export const greenLedgerAbi = [
         "type": "uint256"
       },
       {
+        "internalType": "string",
+        "name": "reason",
+        "type": "string"
+      }
+    ],
+    "name": "revokeCertificate",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "certificateId",
+        "type": "uint256"
+      },
+      {
         "internalType": "address",
         "name": "newOwner",
         "type": "address"
       }
     ],
     "name": "transferCertificate",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newIssuer",
+        "type": "address"
+      }
+    ],
+    "name": "transferIssuer",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

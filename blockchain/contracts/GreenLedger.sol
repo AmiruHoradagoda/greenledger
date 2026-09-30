@@ -19,15 +19,37 @@ contract GreenLedger {
         bool exists;
         bool retired;
         string generationRecordId;
+        bool revoked;
     }
 
     mapping(uint256 => Certificate) public certificates;
     mapping(string => bool) private issuedGenerationRecords;
 
+    // Proposed new issuer. Takes effect only when that address accepts.
+    address public pendingIssuer;
+
     event CertificateIssued(
         uint256 indexed certificateId,
         address indexed owner,
-        string generatorName
+        string generatorName,
+        uint256 energyMWh,
+        string generationRecordId
+    );
+
+    event CertificateRevoked(
+        uint256 indexed certificateId,
+        address indexed revokedBy,
+        string reason
+    );
+
+    event IssuerTransferStarted(
+        address indexed currentIssuer,
+        address indexed pendingIssuer
+    );
+
+    event IssuerTransferred(
+        address indexed previousIssuer,
+        address indexed newIssuer
     );
 
     event CertificateRetired(
@@ -43,7 +65,7 @@ contract GreenLedger {
     modifier onlyIssuer() {
         require(
             msg.sender == issuer,
-            "Only issuer can issue certificates"
+            "Only issuer can call this"
         );
 
         _;
@@ -85,7 +107,8 @@ contract GreenLedger {
             owner: owner,
             exists: true,
             retired: false,
-            generationRecordId: generationRecordId
+            generationRecordId: generationRecordId,
+            revoked: false
         });
 
         issuedGenerationRecords[generationRecordId] = true;
@@ -94,10 +117,45 @@ contract GreenLedger {
         emit CertificateIssued(
             certificateId,
             owner,
-            generatorName
+            generatorName,
+            energyMWh,
+            generationRecordId
         );
 
         return certificateId;
+    }
+
+    // Step 1 of issuer rotation: the current issuer nominates a successor.
+    function transferIssuer(address newIssuer) public onlyIssuer {
+        require(newIssuer != address(0), "Invalid issuer address");
+        pendingIssuer = newIssuer;
+        emit IssuerTransferStarted(issuer, newIssuer);
+    }
+
+    // Step 2: the nominee accepts, proving it controls the address.
+    function acceptIssuer() public {
+        require(msg.sender == pendingIssuer, "Only pending issuer can accept");
+        address previousIssuer = issuer;
+        issuer = msg.sender;
+        pendingIssuer = address(0);
+        emit IssuerTransferred(previousIssuer, msg.sender);
+    }
+
+    // Issuer can invalidate a certificate issued in error. Retired
+    // certificates are final and cannot be revoked.
+    function revokeCertificate(
+        uint256 certificateId,
+        string memory reason
+    ) public onlyIssuer {
+        Certificate storage certificate = certificates[certificateId];
+
+        require(certificate.exists, "Certificate does not exist");
+        require(!certificate.retired, "Cannot revoke retired certificate");
+        require(!certificate.revoked, "Certificate already revoked");
+
+        certificate.revoked = true;
+
+        emit CertificateRevoked(certificateId, msg.sender, reason);
     }
 
     function getCertificate(
@@ -126,6 +184,7 @@ function transferCertificate(uint256 certificateId, address newOwner) public {
     require(certificate.exists, "Certificate does not exist");
     require(msg.sender == certificate.owner, "Only owner can transfer");
     require(!certificate.retired, "Cannot transfer retired certificate");
+    require(!certificate.revoked, "Certificate revoked");
     require(newOwner != address(0), "Invalid new owner address");
 
     address previousOwner = certificate.owner;
@@ -140,6 +199,7 @@ function retireCertificate(uint256 certificateId) public {
     require(certificate.exists, "Certificate does not exist");
     require(msg.sender == certificate.owner, "Only owner can retire");
     require(!certificate.retired, "Certificate already retired");
+    require(!certificate.revoked, "Certificate revoked");
 
     certificate.retired = true;
 

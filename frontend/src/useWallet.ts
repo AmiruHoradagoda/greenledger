@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createWalletClient, custom, type Address, type EIP1193Provider } from 'viem'
-import { chain, rpcUrl } from './ledger'
+import { chain, chainLabel, rpcUrl } from './ledger'
 
 type Provider = EIP1193Provider & { isMetaMask?: boolean; providers?: Provider[] }
 function metaMask() {
@@ -50,7 +50,7 @@ export function useWallet() {
     try { await wallet.switchChain({ id: chain.id }) }
     catch (error) {
       if (!JSON.stringify(error).includes('4902')) throw error
-      await wallet.addChain({ chain: { ...chain, name: 'Hardhat Local', rpcUrls: { default: { http: [rpcUrl] } } } })
+      await wallet.addChain({ chain: { ...chain, name: chainLabel, rpcUrls: { default: { http: [rpcUrl] } } } })
       await wallet.switchChain({ id: chain.id })
     }
     setChainId(await wallet.getChainId())
@@ -58,7 +58,7 @@ export function useWallet() {
 
   async function signingWallet() {
     const wallet = client()
-    if (await wallet.getChainId() !== chain.id) throw new Error('Wrong network. Switch MetaMask to Hardhat Local (31337).')
+    if (await wallet.getChainId() !== chain.id) throw new Error(`Wrong network. Switch MetaMask to ${chainLabel} (${chain.id}).`)
     const [currentAccount] = await wallet.getAddresses()
     if (!currentAccount) throw new Error('Connect MetaMask before sending a transaction.')
     if (currentAccount.toLowerCase() !== account?.toLowerCase()) throw new Error('The wallet account changed. Retry with the current account.')

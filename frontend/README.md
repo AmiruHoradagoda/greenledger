@@ -85,6 +85,14 @@ Connect/authorize these accounts for the Vite site. When changing accounts, sele
 
 To demonstrate duplicate protection, switch back to Account #0 and submit the same generation record ID again. The contract revert is shown before wallet signing. Use a new ID for each additional certificate. If the command-line demo was already run, certificate #1 may be retired; issue a new certificate instead.
 
+## Extra features
+
+- **Audit trail:** each verified certificate lists its issue, transfer, retire and revoke events with block numbers (Etherscan links on Sepolia).
+- **Share link and QR:** `?id=N` in the URL verifies that certificate on load, with no wallet. Use **Copy verify link** or scan the QR code.
+- **My certificates:** with a wallet connected, the account's current certificates appear as one-click chips.
+- **Revoke:** the issuer can revoke the displayed certificate with a reason.
+- **Sepolia:** set `VITE_NETWORK=sepolia` (see `.env.example`) to use the public testnet.
+
 ## Checks and ABI updates
 
 ```powershell

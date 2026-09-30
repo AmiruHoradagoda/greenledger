@@ -4,9 +4,17 @@ A prototype for issuing, transferring, retiring, and verifying renewable energy 
 
 The smart contract, tests, and local demo are in [`blockchain/`](blockchain/). See the [blockchain README](blockchain/README.md) for setup and commands.
 
-The single-page React + TypeScript demo is in [`frontend/`](frontend/). It uses Viem for wallet-free certificate verification and MetaMask for issuance, transfers, and retirement. See the [frontend setup and presentation guide](frontend/README.md) for local deployment, environment configuration, and demo account setup.
+The single-page React + TypeScript demo is in [`frontend/`](frontend/). It uses Viem for wallet-free certificate verification and MetaMask for issuance, transfers, and retirement. Security analysis: [THREAT_MODEL.md](THREAT_MODEL.md). See the [frontend setup and presentation guide](frontend/README.md) for local deployment, environment configuration, and demo account setup.
 
-## Quick start (macOS / Linux)
+## One-command start (macOS / Linux)
+
+```bash
+./run.sh        # or: npm run demo
+```
+
+Installs dependencies, starts a fresh local chain, deploys the contract, writes `frontend/.env.local`, prints the demo account keys and starts the site at http://localhost:5173. Press Ctrl+C to stop. You still need MetaMask with the Hardhat Local network and the printed accounts imported.
+
+## Manual start (macOS / Linux)
 
 The per-folder READMEs show PowerShell commands; these are the zsh/bash equivalents. Use three terminals, starting from the repository root.
 
