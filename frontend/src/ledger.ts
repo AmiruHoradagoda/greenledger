@@ -49,7 +49,7 @@ export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'The request failed. Check MetaMask and the local node, then retry.'
 }
 
-export type HistoryEvent = { kind: 'Issued' | 'Transferred' | 'Retired' | 'Revoked'; id: bigint; block: bigint; hash: Hash; detail: string; actor?: Address; from?: Address; recordId?: string }
+export type HistoryEvent = { kind: 'Issued' | 'Transferred' | 'Retired' | 'Revoked'; id: bigint; block: bigint; hash: Hash; detail: string; actor?: Address; from?: Address; recordId?: string; generator?: string }
 
 export async function ledgerLogs() {
   const contract = await readyContract()
@@ -60,7 +60,7 @@ export async function ledgerLogs() {
     publicClient.getContractEvents({ address: contract, abi, eventName: 'CertificateRevoked', fromBlock: deployBlock }),
   ])
   const events: HistoryEvent[] = [
-    ...issued.map((l) => ({ kind: 'Issued' as const, id: l.args.certificateId!, block: l.blockNumber, hash: l.transactionHash, actor: l.args.owner, recordId: l.args.generationRecordId, detail: `Issued to ${l.args.owner} · ${l.args.energyMWh} MWh` })),
+    ...issued.map((l) => ({ kind: 'Issued' as const, id: l.args.certificateId!, block: l.blockNumber, hash: l.transactionHash, actor: l.args.owner, recordId: l.args.generationRecordId, generator: l.args.generatorName, detail: `Issued to ${l.args.owner} · ${l.args.energyMWh} MWh` })),
     ...transferred.map((l) => ({ kind: 'Transferred' as const, id: l.args.certificateId!, block: l.blockNumber, hash: l.transactionHash, actor: l.args.to, from: l.args.from, detail: `${l.args.from} → ${l.args.to}` })),
     ...retired.map((l) => ({ kind: 'Retired' as const, id: l.args.certificateId!, block: l.blockNumber, hash: l.transactionHash, actor: l.args.owner, detail: `Retired by ${l.args.owner}` })),
     ...revoked.map((l) => ({ kind: 'Revoked' as const, id: l.args.certificateId!, block: l.blockNumber, hash: l.transactionHash, actor: l.args.revokedBy, detail: `Revoked by issuer: ${l.args.reason}` })),
@@ -83,8 +83,19 @@ export function verifyLink(id: bigint) {
   return `${window.location.origin}${window.location.pathname}?id=${id}`
 }
 
+export const ZERO_HASH = `0x${'0'.repeat(64)}` as const
+
+// Must match GreenLedger.computeFingerprint: keccak256(abi.encode(details, previousFingerprint)).
+export function fingerprintOf(c: Pick<Certificate, 'generatorName' | 'energySource' | 'energyMWh' | 'generationPeriod' | 'generationRecordId' | 'previousFingerprint'>) {
+  return keccak256(encodeAbiParameters(
+    [{ type: 'string' }, { type: 'string' }, { type: 'uint256' }, { type: 'string' }, { type: 'string' }, { type: 'bytes32' }],
+    [c.generatorName, c.energySource, c.energyMWh, c.generationPeriod, c.generationRecordId, c.previousFingerprint],
+  ))
+}
+
+export type ChainLink = { certificate: Certificate; hashOk: boolean; linkOk: boolean }
 export type Check = { title: string; what: string; expected: string; actual: string; ok: boolean }
-export type Validation = { checks: Check[]; verdict: 'valid' | 'retired' | 'revoked' | 'invalid' }
+export type Validation = { checks: Check[]; chain: ChainLink[]; gaps: string[]; verdict: 'valid' | 'retired' | 'revoked' | 'invalid' }
 
 // Automated validation from a certificate ID alone: every check reads the chain, nothing is typed in by hand.
 export async function validateCertificate(certificate: Certificate): Promise<Validation> {
@@ -95,12 +106,9 @@ export async function validateCertificate(certificate: Certificate): Promise<Val
   const checks: Check[] = []
 
   // 1. Integrity: rebuild the fingerprint from the stored fields and compare with the fingerprint fixed at issuance.
-  const recomputed = keccak256(encodeAbiParameters(
-    [{ type: 'string' }, { type: 'string' }, { type: 'uint256' }, { type: 'string' }, { type: 'string' }],
-    [certificate.generatorName, certificate.energySource, certificate.energyMWh, certificate.generationPeriod, certificate.generationRecordId],
-  ))
+  const recomputed = fingerprintOf(certificate)
   const onChainOk = await publicClient.readContract({ address: contract, abi, functionName: 'verifyFingerprint', args: [certificate.id, recomputed] })
-  checks.push({ title: 'Details are unaltered', what: 'Hash the certificate fields now (generator, source, MWh, period, record ID) and compare with the fingerprint stored when it was issued.', expected: certificate.fingerprint, actual: recomputed, ok: onChainOk && recomputed === certificate.fingerprint })
+  checks.push({ title: 'Details are unaltered', what: 'Hash the certificate fields now (generator, source, MWh, period, record ID, previous link) and compare with the fingerprint stored when it was issued.', expected: certificate.fingerprint, actual: recomputed, ok: onChainOk && recomputed === certificate.fingerprint })
 
   // 2. Issued by the authorised issuer at that time.
   const rotations = (await publicClient.getContractEvents({ address: contract, abi, eventName: 'IssuerTransferred', fromBlock: deployBlock }))
@@ -123,11 +131,27 @@ export async function validateCertificate(certificate: Certificate): Promise<Val
   const transfers = mine.filter((event) => event.kind === 'Transferred').length
   checks.push({ title: 'Ownership trail is consistent', what: `Replay the issue and ${transfers} transfer${transfers === 1 ? '' : 's'} and compare with the current owner.`, expected: certificate.owner, actual: replayed ?? 'No issue event found', ok: !!replayed && replayed.toLowerCase() === certificate.owner.toLowerCase() })
 
-  // 5. Status.
+  // 5. Provenance chain: every certificate of this generator links to the previous one's fingerprint.
+  const chainIds = events.filter((event) => event.kind === 'Issued' && event.generator === certificate.generatorName).map((event) => event.id)
+  const chainCerts = await Promise.all(chainIds.map((chainId) => readCertificate(chainId)))
+  const chain: ChainLink[] = chainCerts.map((item, index) => ({
+    certificate: item,
+    hashOk: fingerprintOf(item) === item.fingerprint,
+    linkOk: item.previousFingerprint === (index === 0 ? ZERO_HASH : chainCerts[index - 1].fingerprint),
+  }))
+  const brokenAt = chain.find((link) => !link.hashOk || !link.linkOk)
+  checks.push({ title: 'Provenance chain is unbroken', what: `Re-hash all ${chain.length} certificate${chain.length === 1 ? '' : 's'} of “${certificate.generatorName}” and confirm each one points to the fingerprint of the one before it. No record can be inserted, removed or edited without breaking every later link.`, expected: `${chain.length} of ${chain.length} links valid`, actual: brokenAt ? `Broken at certificate #${brokenAt.certificate.id} (${!brokenAt.hashOk ? 'hash mismatch' : 'wrong previous link'})` : `${chain.length} of ${chain.length} links valid`, ok: !brokenAt })
+
+  // Informational: missing months between consecutive periods (YYYY-MM).
+  const months = chain.map((link) => link.certificate.generationPeriod).filter((period) => /^\d{4}-\d{2}$/.test(period)).map((period) => Number(period.slice(0, 4)) * 12 + Number(period.slice(5)) - 1).sort((a, b) => a - b)
+  const gaps: string[] = []
+  for (let i = 1; i < months.length; i++) for (let m = months[i - 1] + 1; m < months[i]; m++) gaps.push(`${Math.floor(m / 12)}-${String((m % 12) + 1).padStart(2, '0')}`)
+
+  // 6. Status.
   const status = certificate.revoked ? 'Revoked' : certificate.retired ? 'Retired' : 'Active'
   checks.push({ title: 'Not revoked or already used', what: 'A valid certificate is neither revoked by the issuer nor retired (already claimed).', expected: 'Active', actual: status, ok: status === 'Active' })
 
-  const integrity = checks.slice(0, 4).every((check) => check.ok)
+  const integrity = checks.slice(0, 5).every((check) => check.ok)
   const verdict = !integrity ? 'invalid' : certificate.revoked ? 'revoked' : certificate.retired ? 'retired' : 'valid'
-  return { checks, verdict }
+  return { checks, chain, gaps, verdict }
 }

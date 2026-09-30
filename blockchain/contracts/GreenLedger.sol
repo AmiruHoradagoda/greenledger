@@ -20,12 +20,20 @@ contract GreenLedger {
         bool retired;
         string generationRecordId;
         bool revoked;
-        // keccak256 of the immutable certificate details (see computeFingerprint).
+        // keccak256 of the immutable certificate details plus previousFingerprint
+        // (see computeFingerprint).
         bytes32 fingerprint;
+        // Fingerprint of the generator's previous certificate (0x0 for its first).
+        // Links each generator's certificates into a tamper-evident chain.
+        bytes32 previousFingerprint;
     }
 
     mapping(uint256 => Certificate) public certificates;
     mapping(string => bool) private issuedGenerationRecords;
+
+    // Head of each generator's certificate chain and its length.
+    mapping(string => bytes32) public latestGeneratorFingerprint;
+    mapping(string => uint256) public generatorChainLength;
 
     // Proposed new issuer. Takes effect only when that address accepts.
     address public pendingIssuer;
@@ -99,6 +107,15 @@ contract GreenLedger {
         );
 
         uint256 certificateId = nextCertificateId;
+        bytes32 previousFingerprint = latestGeneratorFingerprint[generatorName];
+        bytes32 fingerprint = computeFingerprint(
+            generatorName,
+            energySource,
+            energyMWh,
+            generationPeriod,
+            generationRecordId,
+            previousFingerprint
+        );
 
         certificates[certificateId] = Certificate({
             id: certificateId,
@@ -111,14 +128,12 @@ contract GreenLedger {
             retired: false,
             generationRecordId: generationRecordId,
             revoked: false,
-            fingerprint: computeFingerprint(
-                generatorName,
-                energySource,
-                energyMWh,
-                generationPeriod,
-                generationRecordId
-            )
+            fingerprint: fingerprint,
+            previousFingerprint: previousFingerprint
         });
+
+        latestGeneratorFingerprint[generatorName] = fingerprint;
+        generatorChainLength[generatorName]++;
 
         issuedGenerationRecords[generationRecordId] = true;
         nextCertificateId++;
@@ -134,8 +149,10 @@ contract GreenLedger {
         return certificateId;
     }
 
-    // Hash of the details that identify the energy claim. The owner is
-    // excluded because it changes on transfer. Anyone can recompute this
+    // Hash of the details that identify the energy claim, chained to the
+    // generator's previous certificate. Changing any earlier certificate
+    // changes every later fingerprint. The owner is excluded because it
+    // changes on transfer. Anyone can recompute this
     // off-chain and compare it with the stored value to check a claimed
     // certificate.
     function computeFingerprint(
@@ -143,7 +160,8 @@ contract GreenLedger {
         string memory energySource,
         uint256 energyMWh,
         string memory generationPeriod,
-        string memory generationRecordId
+        string memory generationRecordId,
+        bytes32 previousFingerprint
     ) public pure returns (bytes32) {
         return keccak256(
             abi.encode(
@@ -151,7 +169,8 @@ contract GreenLedger {
                 energySource,
                 energyMWh,
                 generationPeriod,
-                generationRecordId
+                generationRecordId,
+                previousFingerprint
             )
         );
     }

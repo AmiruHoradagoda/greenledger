@@ -220,6 +220,11 @@ export const greenLedgerAbi = [
         "internalType": "bytes32",
         "name": "fingerprint",
         "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "previousFingerprint",
+        "type": "bytes32"
       }
     ],
     "stateMutability": "view",
@@ -251,6 +256,11 @@ export const greenLedgerAbi = [
         "internalType": "string",
         "name": "generationRecordId",
         "type": "string"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "previousFingerprint",
+        "type": "bytes32"
       }
     ],
     "name": "computeFingerprint",
@@ -262,6 +272,25 @@ export const greenLedgerAbi = [
       }
     ],
     "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "name": "generatorChainLength",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -330,6 +359,11 @@ export const greenLedgerAbi = [
             "internalType": "bytes32",
             "name": "fingerprint",
             "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "previousFingerprint",
+            "type": "bytes32"
           }
         ],
         "internalType": "struct GreenLedger.Certificate",
@@ -392,6 +426,25 @@ export const greenLedgerAbi = [
         "internalType": "address",
         "name": "",
         "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "name": "latestGeneratorFingerprint",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
       }
     ],
     "stateMutability": "view",

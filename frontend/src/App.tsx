@@ -17,6 +17,7 @@ function App() {
   const [history, setHistory] = useState<HistoryEvent[]>([])
   const [owned, setOwned] = useState<bigint[]>([])
   const [copied, setCopied] = useState(false)
+  const [tab, setTab] = useState<'share' | 'audit'>()
   const [certificate, setCertificate] = useState<Certificate>()
   const [readError, setReadError] = useState('')
   const [reading, setReading] = useState(false)
@@ -189,8 +190,12 @@ function App() {
               <p className="certificate-note">{certificate.revoked ? 'Revoked by the issuer. This certificate is invalid and cannot be transferred or retired.' : certificate.retired ? 'Retired permanently. This certificate cannot be transferred or retired again.' : 'Active and available for transfer or retirement by its current owner.'}</p>
               <div className="full"><p className="eyebrow">ON-CHAIN FINGERPRINT (keccak256)</p><p className="mono">{certificate.fingerprint}</p></div>
               <ValidationReport certificate={certificate} />
-              <div className="share"><div><p className="eyebrow">SHARE VERIFICATION</p><p className="muted">Anyone can scan or open this link to verify, no wallet needed.</p><button type="button" className="secondary" onClick={() => void copyLink()}>{copied ? 'Copied ✓' : 'Copy verify link'}</button></div><QRCodeSVG value={verifyLink(certificate.id)} size={92} /></div>
-              <div className="history"><p className="eyebrow">AUDIT TRAIL</p>{history.length === 0 ? <p className="muted">No events found.</p> : <ol>{history.map((event) => <li key={event.hash + event.kind}><span className={`kind ${event.kind.toLowerCase()}`}>{event.kind}</span><span className="mono">{event.detail}</span><span className="mono muted">block {event.block.toString()} · {explorerUrl ? <a href={`${explorerUrl}/tx/${event.hash}`} target="_blank" rel="noreferrer">{event.hash.slice(0, 12)}…</a> : `${event.hash.slice(0, 12)}…`}</span></li>)}</ol>}</div>
+              <div className="panel-tabs" role="tablist" aria-label="Certificate details">
+                <button type="button" role="tab" aria-selected={tab === 'share'} className={tab === 'share' ? 'active' : ''} onClick={() => setTab(tab === 'share' ? undefined : 'share')}>Share verification</button>
+                <button type="button" role="tab" aria-selected={tab === 'audit'} className={tab === 'audit' ? 'active' : ''} onClick={() => setTab(tab === 'audit' ? undefined : 'audit')}>Audit trail{history.length > 0 && <span className="count">{history.length}</span>}</button>
+              </div>
+              {tab === 'share' && <div className="share"><div><p className="muted">Anyone can scan or open this link to verify, no wallet needed.</p><button type="button" className="secondary" onClick={() => void copyLink()}>{copied ? 'Copied ✓' : 'Copy verify link'}</button></div><QRCodeSVG value={verifyLink(certificate.id)} size={92} /></div>}
+              {tab === 'audit' && <div className="history">{history.length === 0 ? <p className="muted">No events found.</p> : <ol>{history.map((event) => <li key={event.hash + event.kind}><span className={`kind ${event.kind.toLowerCase()}`}>{event.kind}</span><span className="mono">{event.detail}</span><span className="mono muted">block {event.block.toString()} · {explorerUrl ? <a href={`${explorerUrl}/tx/${event.hash}`} target="_blank" rel="noreferrer">{event.hash.slice(0, 12)}…</a> : `${event.hash.slice(0, 12)}…`}</span></li>)}</ol>}</div>}
             </article> : <div className="empty-state"><span aria-hidden="true">↗</span><h3>A clear view of every record.</h3><p>Enter an issued certificate ID to see its energy details, current owner, and status.</p></div>}
           </section>
             <section className="panel actions" id="actions"><div className="section-heading"><span className="step">03</span><div><h2>Owner & issuer actions</h2><p className="muted">Applies to the certificate validated in step 2.</p></div></div>

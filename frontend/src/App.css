@@ -100,17 +100,51 @@ footer span { margin: 0 8px; }
 .verdict-banner.ok { background: #e2f1d8; border-color: #a9cf94; color: #24501f; }
 .verdict-banner.warn { background: #fff6dd; border-color: #e5d08a; color: #6b5310; }
 .verdict-banner.bad { background: #fff0ea; border-color: #e7c3b7; color: #823e29; }
-.checks { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 12px; }
-.checks li { display: flex; gap: 12px; padding: 12px; border-radius: 8px; background: #fff; border: 1px solid #dce3d2; }
+.checks { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
+.checks li { position: relative; border-radius: 8px; background: #fff; border: 1px solid #dce3d2; }
 .checks li.fail { border-color: #e7c3b7; background: #fff8f5; }
-.checks .mark { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 13px; }
+.check-row { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; cursor: pointer; font-size: 13px; }
+.check-row:focus-visible { outline: 2px solid #4f7a3a; border-radius: 8px; }
+.checks .mark { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 12px; }
 .checks .pass .mark { background: #dcecc7; color: #2f6b2a; }
 .checks .fail .mark { background: #f6d5c9; color: #a13a1e; }
-.checks strong { font-size: 13px; }
-.checks p { margin: 2px 0 8px; }
+.check-row strong { font-size: 13px; }
+.check-value { margin-left: auto; color: #687567; text-align: right; }
+.info { color: #8a9e6c; font-size: 14px; }
+.tip { display: none; position: absolute; z-index: 10; left: 12px; right: 12px; top: calc(100% + 4px); padding: 12px 14px; border-radius: 8px; background: #19382c; color: #f1f5e9; font-size: 12px; box-shadow: 0 8px 24px #0003; }
+.tip p { margin: 0 0 8px; color: #dbe6cf; }
+.checks li:hover > .tip, .checks li.open > .tip, .checks li:focus-within > .tip { display: block; }
+.chain-node:hover > .tip, .chain-node:focus > .tip { display: block; }
+.chain-item { position: relative; }
+.chain-node { position: relative; cursor: default; }
+.chain-node .tip { left: 0; right: auto; width: min(420px, 80vw); }
+.tip .compare span { color: #a9bd98; }
+.tip code { color: #fff; }
 .compare { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: 11px; }
 .compare span { color: #687567; }
 .compare code { overflow-wrap: anywhere; }
 
 .actions .revoke-box { margin-top: 26px; }
 .mine { border-top: 0; margin-top: 16px; padding-top: 0; }
+
+.chain { border-top: 1px solid #dce3d2; margin-top: 18px; padding-top: 16px; }
+.chain-row { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; margin-top: 12px; }
+.chain-item { display: flex; align-items: center; gap: 8px; }
+.chain-arrow { font-size: 18px; color: #4f7a3a; }
+.chain-arrow.broken { color: #a13a1e; font-weight: 700; }
+.chain-node { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid #dce3d2; border-radius: 8px; background: #fff; font-size: 11px; }
+.chain-node.current { border-color: #4f7a3a; box-shadow: 0 0 0 2px #dcecc7; }
+.chain-node.broken { border-color: #e7c3b7; background: #fff0ea; }
+.tag { justify-self: start; font-size: 10px; padding: 1px 6px; border-radius: 10px; background: #f6d5c9; color: #823e29; }
+.gap-note { margin-top: 12px; padding: 8px 10px; border-radius: 6px; background: #fff6dd; color: #6b5310; font-size: 12px; }
+
+.panel-tabs { display: flex; gap: 8px; margin-top: 18px; border-top: 1px solid #dce3d2; padding-top: 16px; }
+.panel-tabs button { background: #fff; color: #315239; border: 1px solid #bac8ad; padding: 8px 14px; font-size: 12px; font-weight: 650; border-radius: 20px; display: inline-flex; gap: 6px; align-items: center; }
+.panel-tabs button.active { background: #234b35; color: #eef6d8; border-color: #234b35; }
+.panel-tabs .count { background: #d6f48a; color: #234b35; border-radius: 10px; padding: 0 6px; font-size: 10px; }
+.panel-tabs + .share, .panel-tabs + .history { border-top: 0; margin-top: 12px; padding-top: 0; animation: fade .12s ease-out; }
+@keyframes fade { from { opacity: 0; transform: translateY(-3px); } }
+/* Fast, flicker-free tooltips: they never capture the pointer, so moving between rows updates instantly. */
+.tip { display: block; opacity: 0; visibility: hidden; transform: translateY(-4px); pointer-events: none; transition: opacity .08s ease-out, transform .08s ease-out, visibility 0s .08s; }
+.checks li:hover > .tip, .checks li.open > .tip, .checks li:focus-within > .tip, .chain-node:hover > .tip, .chain-node:focus > .tip { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+.checks li:hover { border-color: #b9cf9a; }

@@ -86,10 +86,14 @@ The final output should show `Status: Retired` and Account 2 as the current owne
 
 The local node's blockchain state is temporary. Stopping or restarting it clears certificates and transactions. Remove the prior local Ignition deployment record and redeploy before repeating the demo.
 
+## Provenance chain
+
+Every certificate stores `previousFingerprint`, the fingerprint of the same generator's previous certificate (all zeros for the first). Its own `fingerprint` is `keccak256(details, previousFingerprint)`, so altering, removing or inserting any earlier certificate breaks every later hash. The contract keeps the chain head in `latestGeneratorFingerprint[generator]` and its length in `generatorChainLength[generator]`. Revoked certificates stay in the chain. Generators are matched by exact name.
+
 ## Coverage, security scan and Sepolia
 
 ```bash
-npx hardhat test --coverage        # 20 tests, 100% line coverage of the contract
+npx hardhat test --coverage        # 22 tests, 100% line coverage of the contract
 slither contracts/GreenLedger.sol  # pip install slither-analyzer; 0 findings
 ```
 

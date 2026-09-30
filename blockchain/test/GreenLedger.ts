@@ -290,6 +290,7 @@ describe("GreenLedger", async function () {
     );
   });
 
+  const ZERO32 = "0x0000000000000000000000000000000000000000000000000000000000000000" as const;
   const owner1 = "0x0000000000000000000000000000000000000001";
   const issueArgs = (record: string, to: string = owner1) =>
     ["Hambantota Solar Farm", "Solar", 1n, "2026-09", to, record] as [
@@ -449,8 +450,8 @@ describe("GreenLedger", async function () {
     const greenLedger = await viem.deployContract("GreenLedger");
     await greenLedger.write.issueCertificate(issueArgs("R-1"));
     const stored = (await greenLedger.read.getCertificate([1n])).fingerprint;
-    const same = await greenLedger.read.computeFingerprint(["Hambantota Solar Farm", "Solar", 1n, "2026-09", "R-1"]);
-    const changed = await greenLedger.read.computeFingerprint(["Hambantota Solar Farm", "Solar", 2n, "2026-09", "R-1"]);
+    const same = await greenLedger.read.computeFingerprint(["Hambantota Solar Farm", "Solar", 1n, "2026-09", "R-1", ZERO32]);
+    const changed = await greenLedger.read.computeFingerprint(["Hambantota Solar Farm", "Solar", 2n, "2026-09", "R-1", ZERO32]);
     assert.equal(stored, same);
     assert.notEqual(stored, changed);
     assert.equal(await greenLedger.read.verifyFingerprint([1n, same]), true);
@@ -465,9 +466,48 @@ describe("GreenLedger", async function () {
     const greenLedger = await viem.deployContract("GreenLedger");
     await greenLedger.write.issueCertificate(issueArgs("R-1"));
     const offChain = keccak256(encodeAbiParameters(
-      [{ type: "string" }, { type: "string" }, { type: "uint256" }, { type: "string" }, { type: "string" }],
-      ["Hambantota Solar Farm", "Solar", 1n, "2026-09", "R-1"],
+      [{ type: "string" }, { type: "string" }, { type: "uint256" }, { type: "string" }, { type: "string" }, { type: "bytes32" }],
+      ["Hambantota Solar Farm", "Solar", 1n, "2026-09", "R-1", ZERO32],
     ));
     assert.equal((await greenLedger.read.getCertificate([1n])).fingerprint, offChain);
+  });
+
+  it("should hash-link each generator's certificates into a chain", async function () {
+    const greenLedger = await viem.deployContract("GreenLedger");
+    const issue = (record: string, period: string, generator = "Hambantota Solar Farm") =>
+      greenLedger.write.issueCertificate([generator, "Solar", 1n, period, owner1, record]);
+
+    await issue("R-1", "2026-07");
+    await issue("R-2", "2026-08");
+    await issue("R-3", "2026-09");
+    await issue("O-1", "2026-09", "Other Farm");
+
+    const c1 = await greenLedger.read.getCertificate([1n]);
+    const c2 = await greenLedger.read.getCertificate([2n]);
+    const c3 = await greenLedger.read.getCertificate([3n]);
+    const other = await greenLedger.read.getCertificate([4n]);
+
+    assert.equal(c1.previousFingerprint, ZERO32);
+    assert.equal(c2.previousFingerprint, c1.fingerprint);
+    assert.equal(c3.previousFingerprint, c2.fingerprint);
+    assert.equal(other.previousFingerprint, ZERO32); // separate chain per generator
+    assert.notEqual(c2.fingerprint, c1.fingerprint);
+    assert.equal(await greenLedger.read.latestGeneratorFingerprint(["Hambantota Solar Farm"]), c3.fingerprint);
+    assert.equal(await greenLedger.read.generatorChainLength(["Hambantota Solar Farm"]), 3n);
+    assert.equal(await greenLedger.read.generatorChainLength(["Other Farm"]), 1n);
+
+    // Fingerprint depends on the previous link: same details, different history, different hash.
+    const detached = await greenLedger.read.computeFingerprint(["Hambantota Solar Farm", "Solar", 1n, "2026-09", "R-3", ZERO32]);
+    assert.notEqual(detached, c3.fingerprint);
+  });
+
+  it("should keep a revoked certificate in the chain", async function () {
+    const greenLedger = await viem.deployContract("GreenLedger");
+    await greenLedger.write.issueCertificate(issueArgs("R-1"));
+    await greenLedger.write.revokeCertificate([1n, "error"]);
+    await greenLedger.write.issueCertificate(issueArgs("R-2"));
+    const c1 = await greenLedger.read.getCertificate([1n]);
+    const c2 = await greenLedger.read.getCertificate([2n]);
+    assert.equal(c2.previousFingerprint, c1.fingerprint);
   });
 });
