@@ -1,0 +1,7 @@
+{
+  "name": "greenledger",
+  "private": true,
+  "scripts": {
+    "demo": "./run.sh"
+  }
+}

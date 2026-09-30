@@ -19,8 +19,8 @@ const contractAsOwner = await viem.getContractAt(
 const hash = await contractAsOwner.write.retireCertificate([1n]);
 await publicClient.waitForTransactionReceipt({ hash });
 
-const certificate = await contractAsOwner.read.certificates([1n]);
+const certificate = await contractAsOwner.read.getCertificate([1n]);
 
 console.log("Transaction:", hash);
-console.log("Certificate ID:", certificate[0]);
-console.log("Retired:", certificate[7]);
+console.log("Certificate ID:", certificate.id);
+console.log("Retired:", certificate.retired);

@@ -7,10 +7,16 @@ export default defineConfig({
     profiles: {
       default: {
         version: "0.8.34",
+        settings: {
+          // issueCertificate has many parameters; viaIR avoids "stack too deep".
+          viaIR: true,
+          optimizer: { enabled: true, runs: 200 },
+        },
       },
       production: {
         version: "0.8.34",
         settings: {
+          viaIR: true,
           optimizer: {
             enabled: true,
             runs: 200,

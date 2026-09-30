@@ -11,6 +11,8 @@ This `blockchain` directory contains the Solidity contract, automated tests, a l
 | Issue    | Issuer (the account that deploys the contract) | Creates a certificate with a unique ID, generator name, energy source, energy amount in MWh, generation period, and owner. |
 | Transfer | Current owner                                  | Changes the owner and emits `CertificateTransferred`. A retired certificate cannot be transferred.                         |
 | Retire   | Current owner                                  | Marks the certificate as retired and emits `CertificateRetired`. It cannot be retired twice.                               |
+| Revoke   | Issuer                                         | Invalidates a certificate issued in error, with a reason. Revoked certificates cannot be transferred or retired. Retired ones cannot be revoked. |
+| Rotate issuer | Issuer, then the nominee                  | `transferIssuer(newIssuer)` nominates; `acceptIssuer()` from that address completes the handover. |
 | Verify   | Anyone                                         | Reads the certificate details, current owner, and `retired` status.                                                        |
 
 Issuing rejects a zero owner address and zero energy amount. Transfers reject nonexistent certificates and a zero destination address. Each state change emits an event. The contract is in `contracts/GreenLedger.sol`.
@@ -83,6 +85,35 @@ npx hardhat run scripts/verify-certificate.ts --network localhost
 The final output should show `Status: Retired` and Account 2 as the current owner. `GREENLEDGER_ADDRESS` must be set in the terminal that runs the scripts. The issue, transfer, and retire demo scripts use Certificate #1 and local accounts 0–2; run this sequence once on a fresh deployment. The verify script accepts another positive certificate ID through `CERTIFICATE_ID`.
 
 The local node's blockchain state is temporary. Stopping or restarting it clears certificates and transactions. Remove the prior local Ignition deployment record and redeploy before repeating the demo.
+
+## Advanced security features
+
+**Generator registry and provenance chain.** The issuer registers each generator once (`registerGenerator(name, wallet)`). Certificates are issued against a `generatorId`, so a typo cannot fork a chain. Each certificate stores `previousFingerprint`, the fingerprint of the same generator's previous certificate (all zeros for the first), and its own `fingerprint` is `keccak256(generatorId, details, previousFingerprint)`. Altering, removing or inserting any earlier certificate breaks every later hash. Revoked certificates stay in the chain.
+
+**Two-party issuance with EIP-712 signatures.** `issueCertificate(generatorId, energySource, energyMWh, period, owner, recordId, signature)` needs a signature from the generator's registered wallet over `GenerationRecord(generatorId, energySource, energyMWh, generationPeriod, generationRecordId, previousFingerprint)`. The contract rebuilds the EIP-712 digest (domain: name `GreenLedger`, version `1`, chain ID, contract address) and checks it with `ecrecover`. The issuer therefore cannot invent or inflate a record on its own. The signature is void if any field changes, on another chain or contract, or once another certificate moves the chain head. Malleable (high-`s`) and malformed signatures are rejected.
+
+**Emergency pause.** `pause()` / `unpause()` (issuer only) block issuing, transfers and retirement. Revoking still works while paused.
+
+Scripts: `register-generator.ts` registers the demo generator (Hardhat account #3), and `issue-certificate.ts` signs as that wallet and then issues as the issuer.
+
+## Coverage, security scan and Sepolia
+
+```bash
+npx hardhat test --coverage        # 19 tests, 100% line coverage of the contract
+slither contracts/GreenLedger.sol --solc-args "--via-ir --optimize"  # pip install slither-analyzer; 1 informational note (inline assembly)
+```
+
+See [`../THREAT_MODEL.md`](../THREAT_MODEL.md) for the threat analysis.
+
+To deploy to the Sepolia testnet you need a Sepolia RPC URL and a funded test account (use a throwaway key, never one that holds real funds):
+
+```bash
+npx hardhat keystore set SEPOLIA_RPC_URL
+npx hardhat keystore set SEPOLIA_PRIVATE_KEY
+npx hardhat ignition deploy ignition/modules/GreenLedger.ts --network sepolia
+```
+
+Then set `VITE_NETWORK=sepolia`, `VITE_RPC_URL` and `VITE_GREENLEDGER_ADDRESS` in `frontend/.env.local` (see `.env.example`). Look the address up on https://sepolia.etherscan.io and put the link on your slides.
 
 ## Scope
 
