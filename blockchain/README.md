@@ -86,15 +86,21 @@ The final output should show `Status: Retired` and Account 2 as the current owne
 
 The local node's blockchain state is temporary. Stopping or restarting it clears certificates and transactions. Remove the prior local Ignition deployment record and redeploy before repeating the demo.
 
-## Provenance chain
+## Advanced security features
 
-Every certificate stores `previousFingerprint`, the fingerprint of the same generator's previous certificate (all zeros for the first). Its own `fingerprint` is `keccak256(details, previousFingerprint)`, so altering, removing or inserting any earlier certificate breaks every later hash. The contract keeps the chain head in `latestGeneratorFingerprint[generator]` and its length in `generatorChainLength[generator]`. Revoked certificates stay in the chain. Generators are matched by exact name.
+**Generator registry and provenance chain.** The issuer registers each generator once (`registerGenerator(name, wallet)`). Certificates are issued against a `generatorId`, so a typo cannot fork a chain. Each certificate stores `previousFingerprint`, the fingerprint of the same generator's previous certificate (all zeros for the first), and its own `fingerprint` is `keccak256(generatorId, details, previousFingerprint)`. Altering, removing or inserting any earlier certificate breaks every later hash. Revoked certificates stay in the chain.
+
+**Two-party issuance with EIP-712 signatures.** `issueCertificate(generatorId, energySource, energyMWh, period, owner, recordId, signature)` needs a signature from the generator's registered wallet over `GenerationRecord(generatorId, energySource, energyMWh, generationPeriod, generationRecordId, previousFingerprint)`. The contract rebuilds the EIP-712 digest (domain: name `GreenLedger`, version `1`, chain ID, contract address) and checks it with `ecrecover`. The issuer therefore cannot invent or inflate a record on its own. The signature is void if any field changes, on another chain or contract, or once another certificate moves the chain head. Malleable (high-`s`) and malformed signatures are rejected.
+
+**Emergency pause.** `pause()` / `unpause()` (issuer only) block issuing, transfers and retirement. Revoking still works while paused.
+
+Scripts: `register-generator.ts` registers the demo generator (Hardhat account #3), and `issue-certificate.ts` signs as that wallet and then issues as the issuer.
 
 ## Coverage, security scan and Sepolia
 
 ```bash
-npx hardhat test --coverage        # 22 tests, 100% line coverage of the contract
-slither contracts/GreenLedger.sol  # pip install slither-analyzer; 0 findings
+npx hardhat test --coverage        # 19 tests, 100% line coverage of the contract
+slither contracts/GreenLedger.sol --solc-args "--via-ir --optimize"  # pip install slither-analyzer; 1 informational note (inline assembly)
 ```
 
 See [`../THREAT_MODEL.md`](../THREAT_MODEL.md) for the threat analysis.

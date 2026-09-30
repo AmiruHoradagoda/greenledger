@@ -1,6 +1,6 @@
 # GreenLedger threat model and security review
 
-Scope: `blockchain/contracts/GreenLedger.sol` and the React frontend. Method: manual review, 22 unit tests (100% line/statement coverage via `npx hardhat test --coverage`), and Slither 0.11.6 (`slither contracts/GreenLedger.sol`: 0 findings across 102 detectors).
+Scope: `blockchain/contracts/GreenLedger.sol` and the React frontend. Method: manual review, 19 unit tests (100% line/statement coverage via `npx hardhat test --coverage`), and Slither 0.11.6 (`slither contracts/GreenLedger.sol --solc-args "--via-ir --optimize"`: 1 informational note, the inline assembly used to split the signature into r, s, v).
 
 ## Assets and actors
 - **Assets:** integrity of certificate records, uniqueness of each generation record, correct ownership, irreversibility of retirement.
@@ -10,7 +10,7 @@ Scope: `blockchain/contracts/GreenLedger.sol` and the React frontend. Method: ma
 
 | # | Threat | Mitigation | Residual risk |
 |---|---|---|---|
-| 1 | Non-issuer mints certificates | `onlyIssuer` on issue, revoke and issuer-transfer; tested | Issuer key compromise |
+| 1 | Non-issuer mints certificates | `onlyIssuer` on issue, revoke, pause, registry and issuer-transfer; tested | Issuer key compromise alone can no longer mint (see 14) |
 | 2 | Issuer key lost or rotated | Two-step `transferIssuer` / `acceptIssuer`, so a typo cannot hand control to an address nobody controls | Compromised key can still act until rotated |
 | 3 | Double counting: same energy certified twice | Each `generationRecordId` can issue once, permanently (survives transfer, retirement, revocation) | Same energy under a different ID is not detected; needs an off-chain registry link |
 | 4 | Certificate issued in error | Issuer `revokeCertificate` with an on-chain reason; blocks transfer and retirement | Issuer is trusted; retired certificates cannot be revoked |

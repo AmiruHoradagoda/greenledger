@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { parseEventLogs, type Address, type Hash } from 'viem'
 import { ValidationReport } from './ValidationReport'
 import { QRCodeSVG } from 'qrcode.react'
-import { abi, address, chain, chainLabel, errorMessage, explorerUrl, ownerAddress, positiveInteger, publicClient, readCertificate, readHistory, readOwnedIds, readyContract, verifyLink, type Certificate, type HistoryEvent } from './ledger'
+import { abi, address, chain, chainLabel, errorMessage, explorerUrl, ownerAddress, positiveInteger, publicClient, readCertificate, readChainHead, readGenerators, readHistory, readOwnedIds, readPaused, readyContract, recordDomain, recordTypes, verifyLink, type Certificate, type Generator, type HistoryEvent } from './ledger'
 import { useWallet } from './useWallet'
 import './App.css'
 
@@ -17,6 +17,12 @@ function App() {
   const [history, setHistory] = useState<HistoryEvent[]>([])
   const [owned, setOwned] = useState<bigint[]>([])
   const [copied, setCopied] = useState(false)
+  const [generators, setGenerators] = useState<Generator[]>([])
+  const [paused, setPaused] = useState(false)
+  const [draft, setDraft] = useState({ generatorId: '', source: 'Solar', mwh: '1', period: '2026-09', record: '', owner: '' })
+  const [signed, setSigned] = useState<{ signature: `0x${string}`; key: string }>()
+  const [regName, setRegName] = useState('')
+  const [regWallet, setRegWallet] = useState('')
   const [tab, setTab] = useState<'share' | 'audit'>()
   const [certificate, setCertificate] = useState<Certificate>()
   const [readError, setReadError] = useState('')
@@ -30,13 +36,19 @@ function App() {
   const correctNetwork = wallet.chainId === chain.id
   const isIssuer = sameAddress(wallet.account, issuer)
   const isOwner = sameAddress(wallet.account, certificate?.owner)
+  const draftGeneratorId = draft.generatorId || generators.find((item) => item.active)?.id.toString() || ''
+  const draftGenerator = generators.find((item) => item.id.toString() === draftGeneratorId)
+  const draftKey = JSON.stringify([draftGeneratorId, draft.source.trim(), draft.mwh.trim(), draft.period, draft.record.trim()])
+  const isDraftGenerator = sameAddress(wallet.account, draftGenerator?.wallet)
+  const hasValidSignature = signed?.key.startsWith(draftKey)
+  const editDraft = (patch: Partial<typeof draft>) => { setDraft({ ...draft, ...patch }); setSigned(undefined) }
 
   useEffect(() => {
     let active = true
     async function loadIssuer() {
       try {
-        const result = await publicClient.readContract({ address: await readyContract(), abi, functionName: 'issuer' })
-        if (active) { setIssuer(result); setConnectionError('') }
+        const [result, list, isPaused] = await Promise.all([publicClient.readContract({ address: await readyContract(), abi, functionName: 'issuer' }), readGenerators(), readPaused()])
+        if (active) { setIssuer(result); setGenerators(list); setPaused(isPaused); setConnectionError('') }
       } catch (error) { if (active) { setIssuer(undefined); setConnectionError(errorMessage(error)) } }
     }
     void loadIssuer()
@@ -87,7 +99,25 @@ function App() {
     finally { pending.current = false; setBusy(false) }
   }
 
-  async function write(action: 'issue' | 'transfer' | 'retire' | 'revoke', form?: FormData) {
+  async function signRecord() {
+    if (pending.current) return
+    pending.current = true; setBusy(true)
+    setNotice({ kind: 'loading', text: 'Generator: sign the record in MetaMask (no gas, no transaction)…' })
+    try {
+      const contract = await readyContract()
+      if (!draftGenerator) throw new Error('Choose a registered generator.')
+      if (!draft.source.trim() || !draft.period || !draft.record.trim()) throw new Error('Complete every certificate field before signing.')
+      const { wallet: signer, account } = await wallet.signingWallet()
+      if (!sameAddress(account, draftGenerator.wallet)) throw new Error(`Switch MetaMask to the generator’s wallet ${draftGenerator.wallet} to sign.`)
+      const previousFingerprint = await readChainHead(draftGenerator.id)
+      const signature = await signer.signTypedData({ account, domain: recordDomain(contract), types: recordTypes, primaryType: 'GenerationRecord', message: { generatorId: draftGenerator.id, energySource: draft.source.trim(), energyMWh: positiveInteger(draft.mwh.trim(), 'MWh'), generationPeriod: draft.period, generationRecordId: draft.record.trim(), previousFingerprint } })
+      setSigned({ signature, key: draftKey + previousFingerprint })
+      setNotice({ kind: 'success', text: 'Record signed by the generator. Now switch to the issuer account and issue the certificate.' })
+    } catch (error) { setNotice({ kind: 'error', text: errorMessage(error) }) }
+    finally { pending.current = false; setBusy(false) }
+  }
+
+  async function write(action: 'issue' | 'transfer' | 'retire' | 'revoke' | 'register' | 'pause' | 'unpause') {
     if (pending.current) return
     pending.current = true; setBusy(true)
     let hash: Hash | undefined
@@ -99,10 +129,21 @@ function App() {
       let selectedId = certificate?.id
       const base = { address: contract, abi, account }
       if (action === 'issue') {
-        const field = (key: string) => String(form?.get(key) ?? '').trim()
-        if (!field('generator') || !field('source') || !field('period') || !field('record')) throw new Error('Complete every certificate field, including the generation record ID.')
-        const { request } = await publicClient.simulateContract({ ...base, functionName: 'issueCertificate', args: [field('generator'), field('source'), positiveInteger(field('mwh'), 'MWh'), field('period'), ownerAddress(field('owner')), field('record')] })
+        const generatorId = BigInt(draftGeneratorId || '0')
+        if (!draftGenerator || !draft.source.trim() || !draft.period || !draft.record.trim()) throw new Error('Complete every certificate field, including the generation record ID.')
+        const head = await readChainHead(generatorId)
+        if (!signed || signed.key !== draftKey + head) throw new Error('The generator’s signature is missing or out of date. Have the generator wallet sign this exact record again.')
+        const { request } = await publicClient.simulateContract({ ...base, functionName: 'issueCertificate', args: [generatorId, draft.source.trim(), positiveInteger(draft.mwh.trim(), 'MWh'), draft.period, ownerAddress(draft.owner.trim()), draft.record.trim(), signed.signature] })
         setNotice({ kind: 'loading', text: 'Confirm issuance in MetaMask…' })
+        hash = await signer.writeContract(request)
+      } else if (action === 'register') {
+        if (!regName.trim()) throw new Error('Enter the generator name.')
+        const { request } = await publicClient.simulateContract({ ...base, functionName: 'registerGenerator', args: [regName.trim(), ownerAddress(regWallet.trim())] })
+        setNotice({ kind: 'loading', text: 'Confirm registration in MetaMask…' })
+        hash = await signer.writeContract(request)
+      } else if (action === 'pause' || action === 'unpause') {
+        const { request } = await publicClient.simulateContract({ ...base, functionName: action })
+        setNotice({ kind: 'loading', text: `Confirm ${action} in MetaMask…` })
         hash = await signer.writeContract(request)
       } else {
         if (selectedId === undefined) throw new Error('Verify a certificate first.')
@@ -130,7 +171,14 @@ function App() {
         const [event] = parseEventLogs({ abi, logs: receipt.logs.filter((log) => sameAddress(log.address, contract)), eventName: 'CertificateIssued' })
         selectedId = event?.args.certificateId
       }
-      setNotice({ kind: 'success', text: `Certificate ${action === 'issue' ? 'issued' : action === 'transfer' ? 'transferred' : action === 'revoke' ? 'revoked' : 'retired'} successfully.`, hash })
+      const done = { register: 'Generator registered.', pause: 'Registry paused.', unpause: 'Registry resumed.', issue: 'Certificate issued successfully.', transfer: 'Certificate transferred successfully.', revoke: 'Certificate revoked successfully.', retire: 'Certificate retired successfully.' }[action]
+      setNotice({ kind: 'success', text: done, hash })
+      if (action === 'register' || action === 'pause' || action === 'unpause') {
+        setGenerators(await readGenerators()); setPaused(await readPaused())
+        if (action === 'register') { setRegName(''); setRegWallet('') }
+        return
+      }
+      if (action === 'issue') setSigned(undefined)
       if (selectedId !== undefined) {
         ++readVersion.current
         setReading(false); setReadError(''); setCertificate(undefined); setId(selectedId.toString())
@@ -159,22 +207,40 @@ function App() {
             {wallet.account && !correctNetwork && <p className="error-text" role="alert">Wrong network: select {chainLabel} ({chain.id}). Writes are disabled.</p>}
           </aside>
         </section>
+        {paused && <div className="notice error" role="alert"><strong>Registry paused.</strong> Issuing, transfers and retirement are disabled until the issuer resumes it.</div>}
         {connectionError && <div className="notice error" role="alert">{connectionError}</div>}
         {notice && <div className={`notice ${notice.kind}`} role={notice.kind === 'error' ? 'alert' : 'status'}><strong>{notice.text}</strong>{notice.hash && <div className="hash">Transaction hash <code>{notice.hash}</code></div>}</div>}
         <nav className="steps" aria-label="Workflow"><a href="#issue"><b>1</b> Issue</a><a href="#validate"><b>2</b> Validate</a><a href="#actions"><b>3</b> Owner actions</a></nav>
         <div className="workspace">
           <section className="panel issuance" id="issue" aria-labelledby="issue-title"><div className="section-heading"><span className="step">01</span><div><h2 id="issue-title">Issue a certificate</h2><p className="muted">Register one external energy generation record.</p></div></div>
-            <p className="access-note">{isIssuer ? 'Issuer account connected.' : 'Only the contract issuer can issue certificates.'}</p>
-            <form onSubmit={(event) => { event.preventDefault(); void write('issue', new FormData(event.currentTarget)) }}>
-              <fieldset disabled={busy || !correctNetwork || !isIssuer || !address}>
-                <label>Generator name<input name="generator" defaultValue="Hambantota Solar Farm" required /></label>
-                <div className="form-grid"><label>Energy source<input name="source" defaultValue="Solar" required /></label><label>Energy (MWh)<input name="mwh" defaultValue="1" inputMode="numeric" pattern="[1-9][0-9]*" required /></label></div>
-                <label>Generation period<input name="period" type="month" defaultValue="2026-09" required /></label>
-                <label>Generation record ID<input name="record" placeholder="HAMBANTOTA-SOLAR-2026-09-002" required /><span className="field-hint">Required and unique. IDs are case-sensitive.</span></label>
-                <label>Initial owner address<input name="owner" placeholder="0x…" required /></label>
-                <button className="issue-button" type="submit">Issue certificate <span aria-hidden="true">↗</span></button>
+            <ol className="flow-steps"><li className={hasValidSignature ? 'done' : 'now'}><b>A</b> Generator signs the record</li><li className={hasValidSignature ? 'now' : ''}><b>B</b> Issuer submits it on-chain</li></ol>
+            <form onSubmit={(event) => { event.preventDefault(); void write('issue') }}>
+              <fieldset disabled={busy || !correctNetwork || !address}>
+                <label>Generator (registered)<select value={draftGeneratorId} onChange={(event) => editDraft({ generatorId: event.target.value })} required>
+                  {generators.length === 0 && <option value="">No generators registered yet</option>}
+                  {generators.map((item) => <option key={item.id.toString()} value={item.id.toString()} disabled={!item.active}>#{item.id.toString()} · {item.name}{item.active ? '' : ' (inactive)'}</option>)}
+                </select><span className="field-hint">{draftGenerator ? <>Signing wallet: <span className="mono">{draftGenerator.wallet}</span></> : 'The issuer registers generators below.'}</span></label>
+                <div className="form-grid"><label>Energy source<input value={draft.source} onChange={(event) => editDraft({ source: event.target.value })} required /></label><label>Energy (MWh)<input value={draft.mwh} onChange={(event) => editDraft({ mwh: event.target.value })} inputMode="numeric" pattern="[1-9][0-9]*" required /></label></div>
+                <label>Generation period<input type="month" value={draft.period} onChange={(event) => editDraft({ period: event.target.value })} required /></label>
+                <label>Generation record ID<input value={draft.record} onChange={(event) => editDraft({ record: event.target.value })} placeholder="HAMBANTOTA-SOLAR-2026-09-002" required /><span className="field-hint">Required and unique. IDs are case-sensitive.</span></label>
+                <label>Initial owner address<input value={draft.owner} onChange={(event) => setDraft({ ...draft, owner: event.target.value })} placeholder="0x…" required /></label>
               </fieldset>
+              <div className="sign-box">
+                <p className="access-note">{hasValidSignature ? '✓ Signed by the generator. Signature is bound to these exact values and the current chain position; changing any field requires signing again.' : isDraftGenerator ? 'Generator wallet connected. Review the values, then sign.' : `Step A needs the generator’s wallet (${draftGenerator ? draftGenerator.wallet : 'none selected'}) connected in MetaMask.`}</p>
+                <div className="action-row">
+                  <button type="button" className="secondary" disabled={busy || !correctNetwork || !isDraftGenerator || !draft.record.trim()} onClick={() => void signRecord()}>A · Sign as generator</button>
+                  <button className="issue-button" type="submit" disabled={busy || !correctNetwork || !isIssuer || !hasValidSignature || paused}>B · Issue certificate <span aria-hidden="true">↗</span></button>
+                </div>
+                <p className="muted">{isIssuer ? 'Issuer account connected.' : 'Step B needs the issuer account.'}{paused ? ' The registry is paused.' : ''}</p>
+              </div>
             </form>
+            <details className="register-box"><summary>Register a new generator (issuer)</summary>
+              <form onSubmit={(event) => { event.preventDefault(); void write('register') }}><fieldset disabled={busy || !correctNetwork || !isIssuer}>
+                <label>Generator name<input value={regName} onChange={(event) => setRegName(event.target.value)} placeholder="e.g. Norochcholai Wind Farm" required /></label>
+                <label>Generator signing wallet<input value={regWallet} onChange={(event) => setRegWallet(event.target.value)} placeholder="0x…" required /></label>
+                <button type="submit" className="secondary">Register generator</button>
+              </fieldset></form>
+            </details>
             <div className="issuer-info"><span className="eyebrow">CONTRACT ISSUER</span><p className="mono">{issuer ?? 'Waiting for local contract…'}</p></div>
           </section>
           <section className="panel verification" id="validate" aria-labelledby="verify-title">
@@ -200,8 +266,9 @@ function App() {
           </section>
             <section className="panel actions" id="actions"><div className="section-heading"><span className="step">03</span><div><h2>Owner & issuer actions</h2><p className="muted">Applies to the certificate validated in step 2.</p></div></div>
               <p className="muted">{!certificate ? 'Validate a certificate in step 2 to continue.' : certificate.revoked ? 'This certificate was revoked. No further actions are available.' : certificate.retired ? 'This certificate is retired. No further owner actions are available.' : !isOwner ? 'Connect the current owner’s account to transfer or retire.' : 'You own this certificate.'}</p>
-              <form onSubmit={(event) => { event.preventDefault(); void write('transfer') }}><fieldset disabled={busy || !correctNetwork || !isOwner || !certificate || certificate.retired || certificate.revoked}><label>New owner address<input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="0x…" required /></label><div className="action-row"><button type="submit" className="secondary">Transfer certificate</button><button type="button" className="retire-button" onClick={() => { if (window.confirm(`Permanently retire certificate #${certificate?.id}? It cannot be transferred or retired again.`)) void write('retire') }}>Retire permanently</button></div></fieldset></form>
+              <form onSubmit={(event) => { event.preventDefault(); void write('transfer') }}><fieldset disabled={busy || !correctNetwork || !isOwner || !certificate || certificate.retired || certificate.revoked || paused}><label>New owner address<input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="0x…" required /></label><div className="action-row"><button type="submit" className="secondary">Transfer certificate</button><button type="button" className="retire-button" onClick={() => { if (window.confirm(`Permanently retire certificate #${certificate?.id}? It cannot be transferred or retired again.`)) void write('retire') }}>Retire permanently</button></div></fieldset></form>
             
+            <div className="revoke-box pause-box"><p className="eyebrow">EMERGENCY STOP (ISSUER ONLY)</p><p className="muted">Pause blocks issuing, transfers and retirement if a key or contract issue is suspected. Revoking still works.</p><button type="button" className={paused ? 'secondary' : 'retire-button'} disabled={busy || !correctNetwork || !isIssuer} onClick={() => void write(paused ? 'unpause' : 'pause')}>{paused ? 'Resume registry' : 'Pause registry'}</button></div>
             <div className="revoke-box"><p className="eyebrow">REVOKE (ISSUER ONLY)</p><p className="muted">Invalidate the certificate validated in step 2 if it was issued in error.</p>
               <form onSubmit={(event) => { event.preventDefault(); void write('revoke') }}><fieldset disabled={busy || !correctNetwork || !isIssuer || !certificate || certificate.retired || certificate.revoked}><label>Reason<input value={revokeReason} onChange={(event) => setRevokeReason(event.target.value)} placeholder="e.g. Meter reading error" required /></label><button type="submit" className="retire-button">Revoke certificate</button></fieldset></form></div>
           </section>

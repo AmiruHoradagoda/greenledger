@@ -66,7 +66,7 @@ Install the MetaMask browser extension. Click **Connect MetaMask**, approve acco
 
 See MetaMask's [custom network instructions](https://support.metamask.io/configure/networks/how-to-add-a-custom-network-rpc).
 
-In MetaMask's account menu, choose the option to add/import an account, select **Private key**, and paste the key for **Account #0** printed by your local Hardhat node. Repeat for **Account #1** and **Account #2**, naming them Demo issuer, Demo owner, and Demo recipient. These are publicly known development accounts: use them only on the local chain, never for real funds. Import keys only into MetaMask, never into the frontend, source files, or environment files. MetaMask documents the [account import flow](https://support.metamask.io/start/use-an-existing-wallet).
+In MetaMask's account menu, choose the option to add/import an account, select **Private key**, and paste the key for **Account #0** printed by your local Hardhat node. Repeat for **Account #1**, **Account #2** and **Account #3** (generator), naming them Demo issuer, Demo owner, and Demo recipient. These are publicly known development accounts: use them only on the local chain, never for real funds. Import keys only into MetaMask, never into the frontend, source files, or environment files. MetaMask documents the [account import flow](https://support.metamask.io/start/use-an-existing-wallet).
 
 Connect/authorize these accounts for the Vite site. When changing accounts, select the desired account in MetaMask and make sure it is connected to the site; the address displayed on the page should change. MetaMask's labels may differ from Hardhat's zero-based numbering. Match addresses:
 
@@ -85,9 +85,17 @@ Connect/authorize these accounts for the Vite site. When changing accounts, sele
 
 To demonstrate duplicate protection, switch back to Account #0 and submit the same generation record ID again. The contract revert is shown before wallet signing. Use a new ID for each additional certificate. If the command-line demo was already run, certificate #1 may be retired; issue a new certificate instead.
 
+## Issuing with a generator signature
+
+Issuing is two-party. Import Hardhat account #3 into MetaMask as the **generator**; `./run.sh` registers it for "Hambantota Solar Farm".
+1. Fill in the issue form. Connect the **generator** account (#3) and click **A · Sign as generator**. MetaMask shows the typed data; signing costs no gas.
+2. Switch MetaMask to the **issuer** (#0) and click **B · Issue certificate**.
+
+Changing any field after signing requires signing again. Other generators can be added under **Register a new generator** (issuer). The issuer can also **pause** the registry in step 3.
+
 ## Extra features
 
-- **Validate from the ID alone:** enter a certificate ID (or open a shared link/QR). The page runs six automated checks against the chain and shows expected vs found for each: details unaltered (recomputed keccak256 fingerprint vs stored), issued by the authorised issuer, energy record counted once, ownership trail consistent, provenance chain unbroken (with a chain diagram and missing-month warnings), not revoked/retired. The verdict is Valid, Genuine but used, Revoked or Invalid.
+- **Validate from the ID alone:** enter a certificate ID (or open a shared link/QR). The page runs seven automated checks against the chain and shows expected vs found for each: details unaltered (recomputed keccak256 fingerprint vs stored), issued by the authorised issuer, signed by the generator (the EIP-712 signature is recovered from the issuing transaction and compared with the registered wallet), energy record counted once, ownership trail consistent, provenance chain unbroken (with a chain diagram and missing-month warnings), not revoked/retired. The verdict is Valid, Genuine but used, Revoked or Invalid.
 - **Audit trail:** each verified certificate lists its issue, transfer, retire and revoke events with block numbers (Etherscan links on Sepolia).
 - **Share link and QR:** `?id=N` in the URL verifies that certificate on load, with no wallet. Use **Copy verify link** or scan the QR code.
 - **My certificates:** with a wallet connected, the account's current certificates appear as one-click chips.

@@ -38,4 +38,4 @@ cd frontend && npm run dev                     # open http://localhost:5173
 
 Optional CLI demo (instead of the browser): `export GREENLEDGER_ADDRESS=<address>`, then run the `issue`, `transfer`, `retire` and `verify` scripts in `blockchain/scripts` with `npx hardhat run scripts/<name>.ts --network localhost` (for verify, also `export CERTIFICATE_ID=1`).
 
-For the browser demo, import Hardhat accounts #0–#2 into MetaMask and add the Hardhat Local network (RPC `http://127.0.0.1:8545`, chain ID `31337`) as described in [`frontend/README.md`](frontend/README.md).
+For the browser demo, import Hardhat accounts #0–#3 into MetaMask and add the Hardhat Local network (RPC `http://127.0.0.1:8545`, chain ID `31337`) as described in [`frontend/README.md`](frontend/README.md).

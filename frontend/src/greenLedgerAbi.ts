@@ -37,6 +37,18 @@ export const greenLedgerAbi = [
         "internalType": "string",
         "name": "generationRecordId",
         "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "generatorId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "attestedBy",
+        "type": "address"
       }
     ],
     "name": "CertificateIssued",
@@ -116,6 +128,44 @@ export const greenLedgerAbi = [
     "inputs": [
       {
         "indexed": true,
+        "internalType": "uint256",
+        "name": "generatorId",
+        "type": "uint256"
+      }
+    ],
+    "name": "GeneratorDeactivated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "generatorId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "wallet",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "name",
+        "type": "string"
+      }
+    ],
+    "name": "GeneratorRegistered",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
         "internalType": "address",
         "name": "currentIssuer",
         "type": "address"
@@ -150,6 +200,32 @@ export const greenLedgerAbi = [
     "type": "event"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "by",
+        "type": "address"
+      }
+    ],
+    "name": "Paused",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "by",
+        "type": "address"
+      }
+    ],
+    "name": "Unpaused",
+    "type": "event"
+  },
+  {
     "inputs": [],
     "name": "acceptIssuer",
     "outputs": [],
@@ -169,6 +245,11 @@ export const greenLedgerAbi = [
       {
         "internalType": "uint256",
         "name": "id",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "generatorId",
         "type": "uint256"
       },
       {
@@ -207,14 +288,14 @@ export const greenLedgerAbi = [
         "type": "bool"
       },
       {
-        "internalType": "string",
-        "name": "generationRecordId",
-        "type": "string"
-      },
-      {
         "internalType": "bool",
         "name": "revoked",
         "type": "bool"
+      },
+      {
+        "internalType": "string",
+        "name": "generationRecordId",
+        "type": "string"
       },
       {
         "internalType": "bytes32",
@@ -225,6 +306,11 @@ export const greenLedgerAbi = [
         "internalType": "bytes32",
         "name": "previousFingerprint",
         "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "attestedBy",
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -233,9 +319,9 @@ export const greenLedgerAbi = [
   {
     "inputs": [
       {
-        "internalType": "string",
-        "name": "generatorName",
-        "type": "string"
+        "internalType": "uint256",
+        "name": "generatorId",
+        "type": "uint256"
       },
       {
         "internalType": "string",
@@ -277,12 +363,38 @@ export const greenLedgerAbi = [
   {
     "inputs": [
       {
-        "internalType": "string",
+        "internalType": "uint256",
+        "name": "generatorId",
+        "type": "uint256"
+      }
+    ],
+    "name": "deactivateGenerator",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
         "name": "",
-        "type": "string"
+        "type": "uint256"
       }
     ],
     "name": "generatorChainLength",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "generatorCount",
     "outputs": [
       {
         "internalType": "uint256",
@@ -308,6 +420,11 @@ export const greenLedgerAbi = [
           {
             "internalType": "uint256",
             "name": "id",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "generatorId",
             "type": "uint256"
           },
           {
@@ -346,14 +463,14 @@ export const greenLedgerAbi = [
             "type": "bool"
           },
           {
-            "internalType": "string",
-            "name": "generationRecordId",
-            "type": "string"
-          },
-          {
             "internalType": "bool",
             "name": "revoked",
             "type": "bool"
+          },
+          {
+            "internalType": "string",
+            "name": "generationRecordId",
+            "type": "string"
           },
           {
             "internalType": "bytes32",
@@ -364,6 +481,11 @@ export const greenLedgerAbi = [
             "internalType": "bytes32",
             "name": "previousFingerprint",
             "type": "bytes32"
+          },
+          {
+            "internalType": "address",
+            "name": "attestedBy",
+            "type": "address"
           }
         ],
         "internalType": "struct GreenLedger.Certificate",
@@ -377,9 +499,45 @@ export const greenLedgerAbi = [
   {
     "inputs": [
       {
-        "internalType": "string",
-        "name": "generatorName",
-        "type": "string"
+        "internalType": "uint256",
+        "name": "generatorId",
+        "type": "uint256"
+      }
+    ],
+    "name": "getGenerator",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "string",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "internalType": "address",
+            "name": "wallet",
+            "type": "address"
+          },
+          {
+            "internalType": "bool",
+            "name": "active",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct GreenLedger.Generator",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "generatorId",
+        "type": "uint256"
       },
       {
         "internalType": "string",
@@ -405,6 +563,11 @@ export const greenLedgerAbi = [
         "internalType": "string",
         "name": "generationRecordId",
         "type": "string"
+      },
+      {
+        "internalType": "bytes",
+        "name": "signature",
+        "type": "bytes"
       }
     ],
     "name": "issueCertificate",
@@ -434,9 +597,9 @@ export const greenLedgerAbi = [
   {
     "inputs": [
       {
-        "internalType": "string",
+        "internalType": "uint256",
         "name": "",
-        "type": "string"
+        "type": "uint256"
       }
     ],
     "name": "latestGeneratorFingerprint",
@@ -465,6 +628,26 @@ export const greenLedgerAbi = [
   },
   {
     "inputs": [],
+    "name": "pause",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "paused",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "pendingIssuer",
     "outputs": [
       {
@@ -474,6 +657,74 @@ export const greenLedgerAbi = [
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "generatorId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "energySource",
+        "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "energyMWh",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "generationPeriod",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "generationRecordId",
+        "type": "string"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "previousFingerprint",
+        "type": "bytes32"
+      }
+    ],
+    "name": "recordDigest",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "name",
+        "type": "string"
+      },
+      {
+        "internalType": "address",
+        "name": "wallet",
+        "type": "address"
+      }
+    ],
+    "name": "registerGenerator",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -534,6 +785,13 @@ export const greenLedgerAbi = [
       }
     ],
     "name": "transferIssuer",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "unpause",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

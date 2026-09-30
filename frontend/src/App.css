@@ -148,3 +148,14 @@ footer span { margin: 0 8px; }
 .tip { display: block; opacity: 0; visibility: hidden; transform: translateY(-4px); pointer-events: none; transition: opacity .08s ease-out, transform .08s ease-out, visibility 0s .08s; }
 .checks li:hover > .tip, .checks li.open > .tip, .checks li:focus-within > .tip, .chain-node:hover > .tip, .chain-node:focus > .tip { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
 .checks li:hover { border-color: #b9cf9a; }
+
+select { width: 100%; background: #fcfdf9; border: 1px solid #d7dfd1; border-radius: 5px; padding: 11px 12px; font-size: 13px; color: #223d2e; }
+.flow-steps { display: flex; gap: 10px; list-style: none; margin: 0 0 18px; padding: 0; font-size: 12px; }
+.flow-steps li { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 20px; border: 1px solid #dce3d2; color: #687567; }
+.flow-steps li b { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: #e3e8da; font-size: 11px; }
+.flow-steps li.now { border-color: #4f7a3a; color: #234b35; }
+.flow-steps li.now b, .flow-steps li.done b { background: #234b35; color: #d6f48a; }
+.flow-steps li.done { color: #2f6b2a; }
+.sign-box { border-top: 1px solid #e5e9df; padding-top: 16px; }
+.register-box { margin-top: 18px; border-top: 1px solid #e5e9df; padding-top: 14px; }
+.register-box summary { cursor: pointer; font-size: 12px; font-weight: 650; color: #315239; margin-bottom: 12px; }

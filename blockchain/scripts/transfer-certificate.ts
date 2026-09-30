@@ -24,8 +24,8 @@ const greenLedger = await viem.getContractAt(
   "GreenLedger",
   contractAddress as `0x${string}`,
 );
-const certificate = await greenLedger.read.certificates([1n]);
+const certificate = await greenLedger.read.getCertificate([1n]);
 
 console.log("Transaction:", hash);
-console.log("New owner:", certificate[5]);
+console.log("New owner:", certificate.owner);
 console.log("Expected owner:", newOwner);

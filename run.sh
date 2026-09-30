@@ -47,9 +47,10 @@ DEPLOY_OUT="$(cd "$ROOT/blockchain" && npx hardhat ignition deploy ignition/modu
 ADDRESS="$(echo "$DEPLOY_OUT" | grep -Eo 'GreenLedgerModule#GreenLedger - 0x[0-9a-fA-F]{40}' | grep -Eo '0x[0-9a-fA-F]{40}')"
 [ -n "$ADDRESS" ] || { echo "Could not read contract address:"; echo "$DEPLOY_OUT"; exit 1; }
 printf 'VITE_GREENLEDGER_ADDRESS=%s\n' "$ADDRESS" >"$ROOT/frontend/.env.local"
+(cd "$ROOT/blockchain" && GREENLEDGER_ADDRESS="$ADDRESS" npx hardhat run scripts/register-generator.ts --network localhost 2>&1 | tail -1)
 
 # Demo account keys are public Hardhat test keys, safe for local use only.
-KEYS="$(grep -E '^(Account #|Private Key:)' "$LOG_DIR/node.log" | head -6 || true)"
+KEYS="$(grep -E '^(Account #|Private Key:)' "$LOG_DIR/node.log" | head -8 || true)"
 
 echo "5/5 Starting the website..."
 cat <<MSG
@@ -57,7 +58,7 @@ cat <<MSG
   Contract deployed at: $ADDRESS
   Website:              http://localhost:5173
   MetaMask network:     RPC http://127.0.0.1:8545, chain ID 31337, symbol ETH
-  Import these Hardhat accounts into MetaMask (#0 issuer, #1 owner, #2 recipient):
+  Import these Hardhat accounts into MetaMask (#0 issuer, #1 owner, #2 recipient, #3 generator/signer):
 $KEYS
 
   Press Ctrl+C to stop.
